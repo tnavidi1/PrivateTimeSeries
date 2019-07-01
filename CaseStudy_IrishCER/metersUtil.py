@@ -1,12 +1,52 @@
 """
-This script collect basic feature calculations 
+This script collect basic feature calculations
 """
 # import scipy
 import numpy as np
+import pandas as pd
+
+import datetime as dt
+from datetime import datetime
+
+
+# process the meters by iteration -- TODO implement it in parallel later
+#
+def iterateMeter(id, cache):
+    meter_pid_df = cache[cache["Meter_ID"] == id]
+
+    # if meter id is empty
+    if meter_pid_df.empty :
+        print("the meter id: {} is empty".format(id))
+        return None
+
+    start_day_delta = min(meter_pid_df["Day"])
+    days_duration = max(meter_pid_df["Day"]) - start_day_delta
+    fix_epoch_ref = datetime.strptime('2009-01-01', '%Y-%m-%d')
+    start_day = fix_epoch_ref + dt.timedelta(days=start_day_delta)
+    start_day_str = start_day.strftime('%Y-%m-%d')
+    end_day = start_day + dt.timedelta(days=days_duration)
+    end_day_str = end_day.strftime('%Y-%m-%d')
+    #
+    meter_pid_ts = pd.date_range(start_day_str, end_day_str, freq="30min")
+    #
+    meter_trim_df = meter_pid_df[meter_pid_df["Day"] < max(meter_pid_df["Day"])]
+    #
+    if len(meter_pid_ts) <= meter_trim_df.shape[0]:
+        meter_pid_kw_ts = pd.Series(
+            meter_trim_df[["Elec_KW"]].values[0:(len(meter_pid_ts))].reshape(len(meter_pid_ts), ),
+            index=meter_pid_ts)
+    # display(meter_trim_df[["Elec_KW"]].values[0:(len(meter_pid_ts))].reshape(1, len(meter_pid_ts)))
+    else:
+        meter_pid_ts = pd.date_range(start_day_str, periods=meter_trim_df.shape[0], freq="30min")
+        meter_pid_kw_ts = pd.Series(
+            meter_trim_df[["Elec_KW"]].values[0:(len(meter_pid_ts))].reshape(len(meter_pid_ts), ),
+            index=meter_pid_ts)
+
+    return meter_pid_kw_ts
 
 
 
-### ---- 1. Consumption features ----- ###
+### =========== 1. Consumption features ========== ###
 
 # calculating P_tot_mean_week
 def calWeekTotalMean(pid_ts):
@@ -182,13 +222,14 @@ def s_num_peaks(pid_ts, deviation_thres=0.2):
 # additional notes:  X = USV'; X project to orth space V (each column in V is an eigenvector)
 #                   XV = USV'V = US
 # --
-def PCA_select(pid_ts, k=10):
+def PCA_select(pid_ts, k=10, daily_resolution=48):
     pid_ts_ = pid_ts[pid_ts < 5]
-    num_sampled_days = int(np.floor(len(pid_ts_) / 48))
-    n_length_ = int(48 * num_sampled_days)
-    X_ = pid_ts_.values[0:n_length_].reshape((num_sampled_days, 48))
+    num_sampled_days = int(np.floor(len(pid_ts_) / daily_resolution))
+    n_length_ = int(daily_resolution * num_sampled_days)
+    X_ = pid_ts_.values[0:n_length_].reshape((num_sampled_days, daily_resolution))
 
     from sklearn.decomposition import PCA
     pca_ = PCA(n_components=k)
     pca_.fit(X_)
+
     return pca_.components_, pca_.explained_variance_ratio_
