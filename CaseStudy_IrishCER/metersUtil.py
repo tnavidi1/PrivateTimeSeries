@@ -8,6 +8,8 @@ import pandas as pd
 import datetime as dt
 from datetime import datetime
 
+import matplotlib.pyplot as plt
+
 
 # process the meters by iteration -- TODO implement it in parallel later
 #
@@ -43,6 +45,56 @@ def iterateMeter(id, cache):
             index=meter_pid_ts)
 
     return meter_pid_kw_ts
+
+
+## ==================================================
+
+def load_static_attr(attr_name,
+                     filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
+
+    # income ""
+    # floor area "ID|floor|61031"
+    # -- (... Smart_meters_Residential_post-trial_survey_data.csv",  encoding = "ISO-8859-1")
+    # appliance ""
+    # pre_survey_res_df = pd.read_csv(filepath, low_memory=False, encoding="ISO-8859-1")
+    # print(pre_survey_res_df)
+    # attr_related_table = pre_survey_res_df.iloc[:, pre_survey_res_df.columns.str.contains(attr_name)]
+    res_table = None
+    pre_survey_res_df = pd.read_csv(filepath, low_memory=False, encoding="ISO-8859-1")
+    attr_related_table = pre_survey_res_df.iloc[:, pre_survey_res_df.columns.str.contains(attr_name)]
+
+    if attr_name == 'income' :
+        res_table = _parse_income_tab(attr_related_table, pre_survey_res_df)
+    elif attr_name == 'floor':
+        res_table = _parse_sqft_tab(attr_related_table, pre_survey_res_df)
+
+
+def _parse_income_tab(related_table, full_df):
+    """
+    internal function to retrieve attribute columns
+    :param related_table:
+    :param full_df:
+    :return:
+    """
+
+    income_level_column = related_table.iloc[:, 3:5].apply(lambda x: x[1] if np.isnan(x[0]) else x[0], axis=1)
+    # print(income_related_table)
+    meter_income_df = full_df[["ID"]].join(pd.DataFrame(income_level_column, columns=["income_level"]))
+    return meter_income_df
+
+
+def _parse_sqft_tab(related_table, full_df):
+    """
+
+    :param related_table:
+    :param full_df:
+    :return:
+    """
+    # print(related_table)
+    df_floor_filtered = related_table[(related_table.iloc[:, 0] < 999999) & (related_table.iloc[:, 0] > 1) ]
+    # print(df_floor_filter.hist())
+    # plt.show()
+    return df_floor_filtered
 
 
 
