@@ -50,7 +50,8 @@ def iterateMeter(id, cache):
 ## ==================================================
 
 def load_static_attr(attr_name,
-                     filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
+                     filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv",
+                     device=None):
 
     # income ""
     # floor area "ID|floor|61031"
@@ -63,10 +64,17 @@ def load_static_attr(attr_name,
     pre_survey_res_df = pd.read_csv(filepath, low_memory=False, encoding="ISO-8859-1")
     attr_related_table = pre_survey_res_df.iloc[:, pre_survey_res_df.columns.str.contains(attr_name)]
 
-    if attr_name == 'income' :
+    if attr_name.find('income') > -1 :
         res_table = _parse_income_tab(attr_related_table, pre_survey_res_df)
-    elif attr_name == 'floor':
+        print(res_table)
+    elif attr_name.find('floor') > -1 :
         res_table = _parse_sqft_tab(attr_related_table, pre_survey_res_df)
+        print(res_table)
+    elif attr_name.find('49001|49002') > -1: #attr_name.find('appliance') > -1:
+        res_table = _parse_appliance_tab(attr_related_table, pre_survey_res_df, device=device)
+
+    else:
+        raise NotImplementedError("not implemented the keyword")
 
 
 def _parse_income_tab(related_table, full_df):
@@ -82,7 +90,6 @@ def _parse_income_tab(related_table, full_df):
     meter_income_df = full_df[["ID"]].join(pd.DataFrame(income_level_column, columns=["income_level"]))
     return meter_income_df
 
-
 def _parse_sqft_tab(related_table, full_df):
     """
 
@@ -94,8 +101,30 @@ def _parse_sqft_tab(related_table, full_df):
     df_floor_filtered = related_table[(related_table.iloc[:, 0] < 999999) & (related_table.iloc[:, 0] > 1) ]
     # print(df_floor_filter.hist())
     # plt.show()
-    return df_floor_filtered
 
+    sqft_df = full_df[["ID"]].join(df_floor_filtered).dropna()
+    sqft_df.rename({"ID": "ID", sqft_df.columns[1]: "floor_area"}, axis=1, inplace=True)
+    return sqft_df
+
+def _parse_appliance_tab(related_table, full_df, device="Washing machine"):
+    # print(related_table)
+    # print(related_table.columns)
+    """
+
+    :param related_table:
+    :param full_df:
+    :param device: "Washing machine", "Tumble dryer", "Dishwasher", "Electric shower",
+                    "hot tank"
+                   "Electric cooker", "Electric heater", "Stand alone freezer", "water pump", "Immersion"
+    :return:
+    """
+    # print(related_table.columns)
+    df_filtered_device = related_table.iloc[:, related_table.columns.str.contains(device)]
+    # print(df_filtered_device)
+    device_df = full_df[["ID"]].join(df_filtered_device.iloc[:,0]).dropna()
+    device_df.rename({"ID": "ID", device_df.columns[1]: device}, axis=1, inplace=True)
+    # print(device_df)
+    return device_df
 
 
 ### =========== 1. Consumption features ========== ###
