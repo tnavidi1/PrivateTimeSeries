@@ -77,6 +77,17 @@ def load_static_attr(attr_name,
         raise NotImplementedError("not implemented the keyword")
 
 
+def _load_static_meterids(filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
+    """
+    this loading id method is a dum
+    :param filepath:
+    :return:
+    """
+    pre_survey_res_df = pd.read_csv(filepath, low_memory=False, encoding="ISO-8859-1")
+    meter_ids = pre_survey_res_df[["ID"]]
+    return meter_ids
+
+
 def _parse_income_tab(related_table, full_df):
     """
     internal function to retrieve attribute columns
