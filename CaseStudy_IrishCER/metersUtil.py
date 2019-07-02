@@ -21,6 +21,7 @@ def iterateMeter(id, cache):
         print("the meter id: {} is empty".format(id))
         return None
 
+    print("start to parse meter id: {} ...".format(id))
     start_day_delta = min(meter_pid_df["Day"])
     days_duration = max(meter_pid_df["Day"]) - start_day_delta
     fix_epoch_ref = datetime.strptime('2009-01-01', '%Y-%m-%d')
@@ -66,16 +67,16 @@ def load_static_attr(attr_name,
 
     if attr_name.find('income') > -1 :
         res_table = _parse_income_tab(attr_related_table, pre_survey_res_df)
-        print(res_table)
+        # print(res_table)
     elif attr_name.find('floor') > -1 :
         res_table = _parse_sqft_tab(attr_related_table, pre_survey_res_df)
-        print(res_table)
+        # print(res_table)
     elif attr_name.find('49001|49002') > -1: #attr_name.find('appliance') > -1:
         res_table = _parse_appliance_tab(attr_related_table, pre_survey_res_df, device=device)
 
     else:
         raise NotImplementedError("not implemented the keyword")
-
+    return res_table
 
 def _load_static_meterids(filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
     """
@@ -98,7 +99,7 @@ def _parse_income_tab(related_table, full_df):
 
     income_level_column = related_table.iloc[:, 3:5].apply(lambda x: x[1] if np.isnan(x[0]) else x[0], axis=1)
     # print(income_related_table)
-    meter_income_df = full_df[["ID"]].join(pd.DataFrame(income_level_column, columns=["income_level"]))
+    meter_income_df = full_df[["ID"]].join(pd.DataFrame(income_level_column, columns=["income_level"])).dropna()
     return meter_income_df
 
 def _parse_sqft_tab(related_table, full_df):
