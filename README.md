@@ -5,7 +5,7 @@
 
 + Python 3.x/numpy/scipy/[cvxpy](http://www.cvxpy.org/en/latest/)
 + [PyTorch](https://pytorch.org) >= 0.4.1
-+ pandas >= 19.0
++ pandas >= 23.0
 + matplotlib, seaborn (optional)
 
 if using GPU, setup CUDA (optional). 

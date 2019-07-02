@@ -46,6 +46,7 @@ reformatDF = pd.read_csv("../../Irish_CER_data_formated/reformated_File1.txt",  
 df_income_id_label = metersUtil.load_static_attr('income')
 
 i=0
+batch_size = 150
 for row in df_income_id_label.itertuples():
     i += 1
     # print(getattr(row, "ID"), getattr(row, "income_level"))
@@ -58,12 +59,18 @@ for row in df_income_id_label.itertuples():
                               'Min': mid_ts.index.minute,
                               'Step': (np.round(mid_ts.index.hour.astype(float) + mid_ts.index.minute.astype(float)/60.0, 1) * 2).astype(int),
                               'Elec_KW': mid_ts.values})
-
+    # reshape to one-day format
     daily_KW_matrix = mid_ts_df.pivot(index='Date', columns='Step', values='Elec_KW').dropna()
-    print(daily_KW_matrix)
-    print("="*20)
-    print(daily_KW_matrix.iloc[1:10,:])
-    # print(pd.melt(mid_ts_df, id_vars=["Date"], value_vars=["Elec_KW"]))
+    nrows = daily_KW_matrix.shape[0]
+    np.random.seed(1)
+    nsamples = np.random.choice(nrows, size=min(batch_size, nrows-1), replace=False)
+    df_mid_ts_attr_sub = pd.DataFrame({'Date': daily_KW_matrix.index[nsamples],
+                                   'Income': np.repeat(income, min(batch_size, nrows-1))})
+
+    daily_KW_matrix_sub=(daily_KW_matrix.iloc[nsamples, :].reset_index(level=['Date']))
+
+    mid_batch_samples = pd.merge(daily_KW_matrix_sub, df_mid_ts_attr_sub, on='Date', how='inner')
+
     if i > 2:
         break
 
