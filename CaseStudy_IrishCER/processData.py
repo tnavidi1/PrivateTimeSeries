@@ -45,7 +45,7 @@ from torch.utils.data import DataLoader, TensorDataset
 df_income_id_label = metersUtil.load_static_attr('income')
 
 
-def parse_train_test(dir_root="../../Irish_CER_data_formated",
+def parse_X_Y(dir_root="../../Irish_CER_data_formated",
                      filename="reformated_File1.txt", nsample_per_mid=50,
                      id_label_df=df_income_id_label.iloc[0:1000,:]):
     """
@@ -132,8 +132,8 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
 
 
 def get_train_test_split():
-    X, Y = parse_train_test()
-
+    X, Y = parse_X_Y()
+    
     n_tt = int(X.shape[0] * 0.8)
 
     X_train, Y_train = X[:n_tt, :], Y[:n_tt, :]
