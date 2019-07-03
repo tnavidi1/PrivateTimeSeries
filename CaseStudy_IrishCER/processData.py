@@ -3,9 +3,10 @@
 import pandas as pd
 import numpy as np
 import os
-import re
 import matplotlib.pyplot as plt
 import metersUtil
+import torch
+from torch.utils.data import DataLoader, TensorDataset
 
 # "ISO-8859-1"
 
@@ -109,7 +110,7 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
         np.random.seed(1)
         nsamples = np.random.choice(nrows, size=min(batch_size, nrows-1), replace=False)
         df_mid_ts_attr_sub = pd.DataFrame({'Date': daily_KW_matrix.index[nsamples],
-                                       'Income': np.repeat(income, min(batch_size, nrows-1))})
+                                           'Income': np.repeat(income, min(batch_size, nrows-1))})
 
         daily_KW_matrix_sub=(daily_KW_matrix.iloc[nsamples, :].reset_index(level=['Date']))
 
@@ -130,6 +131,55 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
     return X, Y
 
 
-parse_train_test()
+def get_train_test_split():
+    X, Y = parse_train_test()
+
+    n_tt = int(X.shape[0] * 0.8)
+
+    X_train, Y_train = X[:n_tt, :], Y[:n_tt, :]
+    X_test, Y_test   = X[n_tt:, :], Y[n_tt:, :]
+
+    arrays = {'X_train': torch.Tensor(X_train), 'Y_train': torch.Tensor(Y_train),
+              'X_test': torch.Tensor(X_test), 'Y_test': torch.Tensor(Y_test)}
+
+    return arrays
+
+
+def get_loaders_tt(arrays_dict, bsz):
+    train_loader = DataLoader(TensorDataset(
+        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=False, batch_size=bsz)
+    test_loader  = DataLoader(TensorDataset(
+        arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
+    return {'train': train_loader, 'test': test_loader}
+
+def get_loaders_tth(arrays_dict, bsz):
+    train_loader = DataLoader(TensorDataset(
+        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=False, batch_size=bsz)
+    test_loader  = DataLoader(TensorDataset(
+        arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
+    hold_loader  = DataLoader(TensorDataset(
+        arrays_dict['X_hold'], arrays_dict['Y_hold']), shuffle=False, batch_size=bsz)
+    return {'train': train_loader, 'test': test_loader, 'hold': hold_loader}
+
+def get_train_hold_split(tensors_dict, th_frac, save_folder):
+    X_train = tensors_dict['X_train']
+    Y_train = tensors_dict['Y_train']
+
+    inds = np.random.permutation(X_train.size(0))
+
+    with open(os.path.join(save_folder, 'th_split_permutation'), 'wb') as f:
+        np.save(f, inds)
+
+    train_inds = torch.LongTensor(inds[ :int(X_train.size(0) * th_frac)])
+    hold_inds = torch.LongTensor(inds[int(X_train.size(0) * th_frac):])
+
+    X_train2, X_hold2 = X_train[train_inds, :], X_train[hold_inds, :]
+    Y_train2, Y_hold2 = Y_train[train_inds, :], Y_train[hold_inds, :]
+
+    tensors_task = {'X_train': X_train2, 'Y_train': Y_train2,
+            'X_hold': X_hold2, 'Y_hold': Y_hold2,
+            'X_test': tensors_dict['X_test'].clone(),
+            'Y_test': tensors_dict['Y_test'].clone()}
+    return tensors_task
 
 
