@@ -44,10 +44,14 @@ from torch.utils.data import DataLoader, TensorDataset
 
 df_income_id_label = metersUtil.load_static_attr('income')
 
+# print(df_income_id_label[df_income_id_label["ID"] <= 8000].index[-1])
+
+# raise NotImplementedError
+
 
 def parse_X_Y(dir_root="../../Irish_CER_data_formated",
                      filename="reformated_File1.txt", nsample_per_mid=50,
-                     id_label_df=df_income_id_label.iloc[0:1000,:]):
+                     id_label_df=df_income_id_label ): # .iloc[0:1000,:]):
     """
 
     :param dir_root:
@@ -77,9 +81,18 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
     subfile_mid_pool = new_mids[~np.isnan(new_mids)].astype(np.int64)
 
     # print(id_label_df["ID"])
+    max_subfile_mid = max(subfile_mid_pool)
+    min_subfile_mid = min(subfile_mid_pool)
+
+    print("file {:s} has meter id: minID={:d}, maxID={:d}".format(filename, min_subfile_mid, max_subfile_mid))
+
 
     attr_min_mid = min((id_label_df["ID"]).astype(np.int64))
-    if max(subfile_mid_pool) < attr_min_mid:
+    max_iter_idx = id_label_df[id_label_df["ID"] <= max_subfile_mid].index[-1]
+    min_iter_idx = id_label_df[id_label_df["ID"] >= min_subfile_mid].index[0]
+
+    max_iter = max_iter_idx - min_iter_idx
+    if max_subfile_mid < attr_min_mid:
         raise NotImplementedError("Out range!!")
     # min_mid = max(min((id_label_df["ID"]).astype(np.int64)), min(subfile_mid_pool))
     # max_mid = min(max((id_label_df["ID"].astype(np.int64))), max(subfile_mid_pool))
@@ -89,7 +102,7 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
     batch_size = nsample_per_mid
     X = None
     Y = None
-    for row in id_label_df.itertuples():
+    for row in id_label_df.iloc[min_iter_idx:max_iter_idx,:].itertuples():
         i += 1
         # print(getattr(row, "ID"), getattr(row, "income_level"))
         mid = str(int(getattr(row, "ID")))
@@ -99,6 +112,12 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
         if mid_ts is None:
             print("skip meter id: {}".format(mid))
             continue
+
+        if i > max_iter:
+            print("==" * 40)
+            print("Finish all entries")
+            print("==" * 40)
+            break
 
         mid_ts_df = pd.DataFrame({'Date': mid_ts.index.date, 'Hr': mid_ts.index.hour,
                                   'Min': mid_ts.index.minute,
@@ -124,16 +143,17 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
             Y = np.vstack((Y, mid_batch_samples.iloc[:, 49:50].to_numpy() ) )
 
         if i % 10 == 0:
-            print("=" * 80)
+            print("==" * 30)
             print("== {} meters, X size :{}, Y size : {}".format(i, X.shape, Y.shape))
-            print("=" * 80)
+            print("==" * 30)
 
     return X, Y
 
 
 def get_train_test_split():
+
     X, Y = parse_X_Y()
-    
+
     n_tt = int(X.shape[0] * 0.8)
 
     X_train, Y_train = X[:n_tt, :], Y[:n_tt, :]
@@ -151,15 +171,6 @@ def get_loaders_tt(arrays_dict, bsz):
     test_loader  = DataLoader(TensorDataset(
         arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
     return {'train': train_loader, 'test': test_loader}
-
-def get_loaders_tth(arrays_dict, bsz):
-    train_loader = DataLoader(TensorDataset(
-        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=False, batch_size=bsz)
-    test_loader  = DataLoader(TensorDataset(
-        arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
-    hold_loader  = DataLoader(TensorDataset(
-        arrays_dict['X_hold'], arrays_dict['Y_hold']), shuffle=False, batch_size=bsz)
-    return {'train': train_loader, 'test': test_loader, 'hold': hold_loader}
 
 def get_train_hold_split(tensors_dict, th_frac, save_folder):
     X_train = tensors_dict['X_train']
@@ -182,4 +193,19 @@ def get_train_hold_split(tensors_dict, th_frac, save_folder):
             'Y_test': tensors_dict['Y_test'].clone()}
     return tensors_task
 
+
+def get_loaders_tth(arrays_dict, bsz):
+    train_loader = DataLoader(TensorDataset(
+        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=False, batch_size=bsz)
+    test_loader  = DataLoader(TensorDataset(
+        arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
+    hold_loader  = DataLoader(TensorDataset(
+        arrays_dict['X_hold'], arrays_dict['Y_hold']), shuffle=False, batch_size=bsz)
+    return {'train': train_loader, 'test': test_loader, 'hold': hold_loader}
+
+
+
+n_ = 50
+X, Y = parse_X_Y(filename="reformated_File1.txt", nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
+np.savez_compressed('../Data_IrishCER/income/n{:d}perID_file1.npz'.format(n_) , X=X, Y=Y)
 
