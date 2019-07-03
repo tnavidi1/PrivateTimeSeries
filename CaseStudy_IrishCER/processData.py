@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 import os
+import re
 import matplotlib.pyplot as plt
 import metersUtil
 
@@ -22,7 +23,6 @@ import metersUtil
 # print(reformatDF.loc[reformatDF["Meter_ID"] == '1001'] )
 
 # pid_ts = metersUtil.iterateMeter(1002, reformatDF)
-# print(pid_ts)
 
 # metersUtil.load_static_attr('income')
 # metersUtil.load_static_attr('floor')
@@ -41,11 +41,12 @@ import metersUtil
 
 
 
-
+df_income_id_label = metersUtil.load_static_attr('income')
 
 
 def parse_train_test(dir_root="../../Irish_CER_data_formated",
-                     filename="reformated_File1.txt", nsample_per_mid=150):
+                     filename="reformated_File1.txt", nsample_per_mid=150,
+                     id_label_df=df_income_id_label.iloc[0:1000,:]):
     """
 
     :param dir_root:
@@ -56,14 +57,38 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
     reformatDF = pd.read_csv(os.path.join(dir_root, filename), index_col=None,
                              encoding="iso-8859-1", sep=',',
                              low_memory=False, error_bad_lines=False, nrows=None)  # 24465540
+    # Index(['Meter_ID', 'Year', 'Day', 'Hour', 'Minute', 'Elec_KW']
+    # print(reformatDF.columns)
+    # print(reformatDF['Meter_ID'].dtype)
 
-    df_income_id_label = metersUtil.load_static_attr('income')
+    def f_parse(x):
+        sx = str(x)
+        if len(sx) > 4 or len(sx) < 4:
+            return np.NaN
+        elif len(sx) == 4:
 
+            if sx.find('\x9f') > -1 or sx.find('\x94') > -1:
+                return np.NaN
+            else:
+                return np.int(sx)
+
+    mids = np.unique(reformatDF["Meter_ID"].values)
+    new_mids=np.vectorize(f_parse)(mids)
+    subfile_mid_pool = new_mids[~np.isnan(new_mids)].astype(np.int64)
+    print(id_label_df["ID"])
+    # print(type(id_label_df["ID"]))
+    attr_id = min((id_label_df["ID"]).astype(np.int64))
+    if max(subfile_mid_pool) < attr_id:
+        raise NotImplementedError("Out range!!")
+    # min_mid = max(min((id_label_df["ID"]).astype(np.int64)), min(subfile_mid_pool))
+    # max_mid = min(max((id_label_df["ID"].astype(np.int64))), max(subfile_mid_pool))
+    # print(min_mid, max_mid)
+    # raise NotImplementedError
     i = 0
     batch_size = nsample_per_mid
     X = None
     Y = None
-    for row in df_income_id_label.itertuples():
+    for row in id_label_df.itertuples():
         i += 1
         # print(getattr(row, "ID"), getattr(row, "income_level"))
         mid = str(int(getattr(row, "ID")))
@@ -95,10 +120,16 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
             Y = np.vstack((Y, mid_batch_samples.iloc[:, 49:50].to_numpy() ) )
 
 
-        # if i > 2:
-        #     print(X)
-        #     print(Y)
-        #     break
+        if i > 2:
+            print(X.shape)
+            print(Y.shape)
+            break
 
 
 parse_train_test()
+
+# print('\x9få\x0c\x94'.find('\x9f'))
+# print( ('\x9få\x0c\x94'.find(')))
+# print('1232'[0])
+# print(re.match("(\x9f)|(\x0c)|(\x94)", '\x9få\x0c\x94') ) # .find('\x9f\x94'))
+# print(re.match('\\x[0-9][a-z]', '\x9få\x0c\x94') ) # .find('\x9f\x94'))
