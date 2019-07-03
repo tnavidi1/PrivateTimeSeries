@@ -45,7 +45,7 @@ df_income_id_label = metersUtil.load_static_attr('income')
 
 
 def parse_train_test(dir_root="../../Irish_CER_data_formated",
-                     filename="reformated_File1.txt", nsample_per_mid=150,
+                     filename="reformated_File1.txt", nsample_per_mid=50,
                      id_label_df=df_income_id_label.iloc[0:1000,:]):
     """
 
@@ -58,9 +58,8 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
                              encoding="iso-8859-1", sep=',',
                              low_memory=False, error_bad_lines=False, nrows=None)  # 24465540
     # Index(['Meter_ID', 'Year', 'Day', 'Hour', 'Minute', 'Elec_KW']
-    # print(reformatDF.columns)
-    # print(reformatDF['Meter_ID'].dtype)
 
+    # internal function to parse the err string
     def f_parse(x):
         sx = str(x)
         if len(sx) > 4 or len(sx) < 4:
@@ -75,10 +74,11 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
     mids = np.unique(reformatDF["Meter_ID"].values)
     new_mids=np.vectorize(f_parse)(mids)
     subfile_mid_pool = new_mids[~np.isnan(new_mids)].astype(np.int64)
-    print(id_label_df["ID"])
-    # print(type(id_label_df["ID"]))
-    attr_id = min((id_label_df["ID"]).astype(np.int64))
-    if max(subfile_mid_pool) < attr_id:
+
+    # print(id_label_df["ID"])
+
+    attr_min_mid = min((id_label_df["ID"]).astype(np.int64))
+    if max(subfile_mid_pool) < attr_min_mid:
         raise NotImplementedError("Out range!!")
     # min_mid = max(min((id_label_df["ID"]).astype(np.int64)), min(subfile_mid_pool))
     # max_mid = min(max((id_label_df["ID"].astype(np.int64))), max(subfile_mid_pool))
@@ -95,6 +95,9 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
         income = int(getattr(row, "income_level"))
         mid_ts = metersUtil.iterateMeter(mid, reformatDF)
         # ==========================
+        if mid_ts is None:
+            print("skip meter id: {}".format(mid))
+            continue
 
         mid_ts_df = pd.DataFrame({'Date': mid_ts.index.date, 'Hr': mid_ts.index.hour,
                                   'Min': mid_ts.index.minute,
@@ -119,17 +122,14 @@ def parse_train_test(dir_root="../../Irish_CER_data_formated",
             X = np.vstack((X, mid_batch_samples.iloc[:, 1:49].to_numpy() ))
             Y = np.vstack((Y, mid_batch_samples.iloc[:, 49:50].to_numpy() ) )
 
+        if i % 10 == 0:
+            print("=" * 80)
+            print("== {} meters, X size :{}, Y size : {}".format(i, X.shape, Y.shape))
+            print("=" * 80)
 
-        if i > 2:
-            print(X.shape)
-            print(Y.shape)
-            break
+    return X, Y
 
 
 parse_train_test()
 
-# print('\x9få\x0c\x94'.find('\x9f'))
-# print( ('\x9få\x0c\x94'.find(')))
-# print('1232'[0])
-# print(re.match("(\x9f)|(\x0c)|(\x94)", '\x9få\x0c\x94') ) # .find('\x9f\x94'))
-# print(re.match('\\x[0-9][a-z]', '\x9få\x0c\x94') ) # .find('\x9f\x94'))
+
