@@ -218,10 +218,14 @@ def get_train_hold_split(tensors_dict, th_frac, save_folder):
     X_train = tensors_dict['X_train']
     Y_train = tensors_dict['Y_train']
 
+    np.random.seed(1)
     inds = np.random.permutation(X_train.size(0))
 
-    with open(os.path.join(save_folder, 'th_split_permutation'), 'wb') as f:
-        np.save(f, inds)
+    if os.path.exists(os.path.join(save_folder, 'th_split_permutation')):
+        inds = load_np_inds(os.path.join(save_folder, 'th_split_permutation'))
+    else:
+        with open(os.path.join(save_folder, 'th_split_permutation'), 'wb') as f:
+            np.save(f, inds)
 
     train_inds = torch.LongTensor(inds[ :int(X_train.size(0) * th_frac)])
     hold_inds = torch.LongTensor(inds[int(X_train.size(0) * th_frac):])
@@ -246,7 +250,8 @@ def get_loaders_tth(arrays_dict, bsz):
     return {'train': train_loader, 'test': test_loader, 'hold': hold_loader}
 
 
-
+def load_np_inds(file):
+    return np.load(file)
 
 
 # ============================================== #
