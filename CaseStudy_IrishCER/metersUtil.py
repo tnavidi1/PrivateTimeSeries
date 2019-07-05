@@ -15,15 +15,15 @@ import matplotlib.pyplot as plt
 #
 def iterateMeter(id, cache):
     meter_pid_df = cache[cache["Meter_ID"] == id]
-
+    meter_pid_df = meter_pid_df.dropna()
     # if meter id is empty
     if meter_pid_df.empty :
         print("the meter id: {} is empty".format(id))
         return None
 
     print("start to parse meter id: {} ...".format(id))
-    start_day_delta = min(meter_pid_df["Day"])
-    days_duration = max(meter_pid_df["Day"]) - start_day_delta
+    start_day_delta = min(meter_pid_df["Day"].dropna().astype(np.int))
+    days_duration = max(meter_pid_df["Day"].dropna().astype(np.int)) - start_day_delta
     fix_epoch_ref = datetime.strptime('2009-01-01', '%Y-%m-%d')
     start_day = fix_epoch_ref + dt.timedelta(days=start_day_delta)
     start_day_str = start_day.strftime('%Y-%m-%d')
@@ -32,7 +32,7 @@ def iterateMeter(id, cache):
     #
     meter_pid_ts = pd.date_range(start_day_str, end_day_str, freq="30min")
     #
-    meter_trim_df = meter_pid_df[meter_pid_df["Day"] < max(meter_pid_df["Day"])]
+    meter_trim_df = meter_pid_df[meter_pid_df["Day"].dropna() < max(meter_pid_df["Day"].dropna())]
     #
     if len(meter_pid_ts) <= meter_trim_df.shape[0]:
         meter_pid_kw_ts = pd.Series(

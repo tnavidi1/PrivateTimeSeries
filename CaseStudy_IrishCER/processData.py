@@ -40,13 +40,31 @@ from torch.utils.data import DataLoader, TensorDataset
 # print(metersUtil._load_static_meterids())
 
 
+def load_cached_files(dir_root='../Data_IrishCER', attr='income', filename='File2', n=50):
+    if not os.path.isdir(dir_root):
+        print(os.listdir(dir_root))
+        raise FileNotFoundError("=== folder not exist ===")
+
+    data = np.load(os.path.join(dir_root, '{:s}/n{:d}perID_{:s}.npz'.format(attr, n, filename)))
+    return data['X'], data['Y']
+    # plt.hist(data['Y'].flatten())
+    # plt.show()
 
 
-df_income_id_label = metersUtil.load_static_attr('income')
-
-# print(df_income_id_label[df_income_id_label["ID"] <= 8000].index[-1])
+# Y_arr = None
+# for fn in ['file1', 'file2']:
+#     X, Y = load_cached_files(filename=fn)
+#     if Y_arr is None:
+#         Y_arr = Y
+#     else:
+#         Y_arr = np.vstack((Y_arr, Y))
+#
+# plt.hist(Y_arr.flatten())
+# plt.show()
 
 # raise NotImplementedError
+
+df_income_id_label = metersUtil.load_static_attr('income')
 
 
 def parse_X_Y(dir_root="../../Irish_CER_data_formated",
@@ -66,21 +84,31 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
 
     # internal function to parse the err string
     def f_parse(x):
-        sx = str(x)
+        if isinstance(x, str):
+            sx = x
+        else:
+            sx = str(x)
+
         if len(sx) > 4 or len(sx) < 4:
             return np.NaN
+
         elif len(sx) == 4:
 
             if sx.find('\x9f') > -1 or sx.find('\x94') > -1:
                 return np.NaN
             else:
-                return np.int(sx)
+                # print(sx)
+                return np.float(sx)
 
-    mids = np.unique(reformatDF["Meter_ID"].values)
+    # print(reformatDF["Meter_ID"].unique())
+    # mids = np.unique(reformatDF["Meter_ID"].values)
+    mids = reformatDF["Meter_ID"].dropna().unique()
     new_mids=np.vectorize(f_parse)(mids)
+    # raise NotImplementedError
     subfile_mid_pool = new_mids[~np.isnan(new_mids)].astype(np.int64)
 
     # print(id_label_df["ID"])
+    # print(subfile_mid_pool)
     max_subfile_mid = max(subfile_mid_pool)
     min_subfile_mid = min(subfile_mid_pool)
 
@@ -94,10 +122,11 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
     max_iter = max_iter_idx - min_iter_idx
     if max_subfile_mid < attr_min_mid:
         raise NotImplementedError("Out range!!")
+
     # min_mid = max(min((id_label_df["ID"]).astype(np.int64)), min(subfile_mid_pool))
     # max_mid = min(max((id_label_df["ID"].astype(np.int64))), max(subfile_mid_pool))
     # print(min_mid, max_mid)
-    # raise NotImplementedError
+
     i = 0
     batch_size = nsample_per_mid
     X = None
@@ -113,7 +142,7 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
             print("skip meter id: {}".format(mid))
             continue
 
-        if i > max_iter:
+        if i > (max_iter):
             print("==" * 40)
             print("Finish all entries")
             print("==" * 40)
@@ -150,14 +179,27 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
     return X, Y
 
 
-def get_train_test_split():
+def get_train_test_split(dir_root='../'):
 
-    X, Y = parse_X_Y()
+    # X, Y = parse_X_Y()
+    X_all = np.array([]).reshape(0, 48)
+    Y_all = np.array([]).reshape(0, 1)
+
+    for fn in ['File1', 'File2', 'File3', 'File4']:
+        X, Y = load_cached_files(dir_root=dir_root, attr='income', filename=fn, n=50)
+        # print(X.shape)
+        X_all = np.concatenate((X_all, X), axis=0)
+        Y_all = np.concatenate((Y_all, Y), axis=0)
+
+    print(X_all.shape, Y_all.shape)
+    print("==" * 20)
+
+
 
     n_tt = int(X.shape[0] * 0.8)
 
-    X_train, Y_train = X[:n_tt, :], Y[:n_tt, :]
-    X_test, Y_test   = X[n_tt:, :], Y[n_tt:, :]
+    X_train, Y_train = X_all[:n_tt, :], Y_all[:n_tt, :]
+    X_test, Y_test   = X_all[n_tt:, :], Y_all[n_tt:, :]
 
     arrays = {'X_train': torch.Tensor(X_train), 'Y_train': torch.Tensor(Y_train),
               'X_test': torch.Tensor(X_test), 'Y_test': torch.Tensor(Y_test)}
@@ -205,7 +247,21 @@ def get_loaders_tth(arrays_dict, bsz):
 
 
 
-n_ = 50
-X, Y = parse_X_Y(filename="reformated_File1.txt", nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
-np.savez_compressed('../Data_IrishCER/income/n{:d}perID_file1.npz'.format(n_) , X=X, Y=Y)
+
+
+# ============================================== #
+# == run the following for generating npz data== #
+# ============================================== #
+
+# n_ = 50
+#
+# for fname in ["File4", "File5"]:
+#     X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
+#     np.savez_compressed('../Data_IrishCER/income/n{:d}perID_{:s}.npz'.format(n_, fname), X=X, Y=Y)
+#     print("==== save the file: {:s} ====".format(fname))
+
+
+
+
+
 
