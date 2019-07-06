@@ -64,12 +64,13 @@ def load_cached_files(dir_root='../Data_IrishCER', attr='income', filename='File
 
 # raise NotImplementedError
 
-df_income_id_label = metersUtil.load_static_attr('income')
+# df_income_id_label = metersUtil.load_static_attr('income')
 
+df_floor_id_label = metersUtil.load_static_attr('floor')
 
 def parse_X_Y(dir_root="../../Irish_CER_data_formated",
                      filename="reformated_File1.txt", nsample_per_mid=50,
-                     id_label_df=df_income_id_label ): # .iloc[0:1000,:]):
+                     id_label_df=None ): # .iloc[0:1000,:]):
     """
 
     :param dir_root:
@@ -135,7 +136,10 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
         i += 1
         # print(getattr(row, "ID"), getattr(row, "income_level"))
         mid = str(int(getattr(row, "ID")))
-        income = int(getattr(row, "income_level"))
+
+        # income = int(getattr(row, "income_level"))
+        floor = int(getattr(row, "floor_area"))
+
         mid_ts = metersUtil.iterateMeter(mid, reformatDF)
         # ==========================
         if mid_ts is None:
@@ -157,8 +161,10 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
         nrows = daily_KW_matrix.shape[0]
         np.random.seed(1)
         nsamples = np.random.choice(nrows, size=min(batch_size, nrows-1), replace=False)
+        # df_mid_ts_attr_sub = pd.DataFrame({'Date': daily_KW_matrix.index[nsamples],
+        #                                    'Income': np.repeat(income, min(batch_size, nrows-1))})
         df_mid_ts_attr_sub = pd.DataFrame({'Date': daily_KW_matrix.index[nsamples],
-                                           'Income': np.repeat(income, min(batch_size, nrows-1))})
+                                           'Floor': np.repeat(floor, min(batch_size, nrows-1))})
 
         daily_KW_matrix_sub=(daily_KW_matrix.iloc[nsamples, :].reset_index(level=['Date']))
 
@@ -258,11 +264,12 @@ def load_np_inds(file):
 # == run the following for generating npz data== #
 # ============================================== #
 
-# n_ = 50
+n_ = 50
 #
-# for fname in ["File4", "File5"]:
-#     X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
-#     np.savez_compressed('../Data_IrishCER/income/n{:d}perID_{:s}.npz'.format(n_, fname), X=X, Y=Y)
+for fname in ["File1", "File2", "File3", "File4"]:
+    # X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
+    X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_floor_id_label) # .iloc[0:1000,:]
+    np.savez_compressed('../Data_IrishCER/floor/n{:d}perID_{:s}.npz'.format(n_, fname), X=X, Y=Y)
 #     print("==== save the file: {:s} ====".format(fname))
 
 
