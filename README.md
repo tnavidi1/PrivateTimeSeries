@@ -11,4 +11,9 @@
 if using GPU, setup CUDA (optional). 
 
 #### Notes:
-- the encoding format is "**ISO-8859-1**"  
+- the encoding format is "**ISO-8859-1**" 
+
+#### Irish Data \& References 
+[Data] http://www.ucd.ie/issda/data/commissionforenergyregulationcer/
+
+[Paper] https://www.vs.inf.ethz.ch/publ/papers/beckel-2014-energy.pdf
