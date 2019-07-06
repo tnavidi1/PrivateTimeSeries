@@ -4,7 +4,7 @@
 ## Setup and Dependencies
 
 + Python 3.x/numpy/scipy/[cvxpy](http://www.cvxpy.org/en/latest/)
-+ [PyTorch](https://pytorch.org) >= 0.4.1
++ [PyTorch](https://pytorch.org) >= 0.4.1  [recommend version >=1.1.0]
 + pandas >= 23.0
 + matplotlib, seaborn (optional)
 
