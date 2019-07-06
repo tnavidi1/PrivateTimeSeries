@@ -68,6 +68,9 @@ def load_cached_files(dir_root='../Data_IrishCER', attr='income', filename='File
 
 df_floor_id_label = metersUtil.load_static_attr('floor')
 
+# print(df_floor_id_label.iloc[55:300,:])
+# raise NotImplementedError
+
 def parse_X_Y(dir_root="../../Irish_CER_data_formated",
                      filename="reformated_File1.txt", nsample_per_mid=50,
                      id_label_df=None ): # .iloc[0:1000,:]):
@@ -105,22 +108,28 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
     # mids = np.unique(reformatDF["Meter_ID"].values)
     mids = reformatDF["Meter_ID"].dropna().unique()
     new_mids=np.vectorize(f_parse)(mids)
-    # raise NotImplementedError
+
     subfile_mid_pool = new_mids[~np.isnan(new_mids)].astype(np.int64)
 
-    # print(id_label_df["ID"])
-    # print(subfile_mid_pool)
     max_subfile_mid = max(subfile_mid_pool)
     min_subfile_mid = min(subfile_mid_pool)
 
     print("file {:s} has meter id: minID={:d}, maxID={:d}".format(filename, min_subfile_mid, max_subfile_mid))
 
-
-    attr_min_mid = min((id_label_df["ID"]).astype(np.int64))
-    max_iter_idx = id_label_df[id_label_df["ID"] <= max_subfile_mid].index[-1]
-    min_iter_idx = id_label_df[id_label_df["ID"] >= min_subfile_mid].index[0]
+    id_label_df = id_label_df.reset_index(drop=True)
+    attr_min_mid = max(min((id_label_df["ID"]).astype(np.int64)), min_subfile_mid)
+    max_iter_idx = id_label_df[id_label_df["ID"].astype(np.int) <= max_subfile_mid].index[-1]
+    min_iter_idx = id_label_df[id_label_df["ID"].astype(np.int) >= min_subfile_mid].index[0]
+    # max_iter_idx = id_label_df[id_label_df["ID"].astype(np.int) <= max_subfile_mid]["ID"].values[-1]
+    # min_iter_idx = id_label_df[id_label_df["ID"].astype(np.int) >= min_subfile_mid]["ID"].values[0]
+    # print(max_iter_idx, min_iter_idx)
+    # print(id_label_df.iloc[min_iter_idx:max_iter_idx,:])
+    # raise NotImplementedError
 
     max_iter = max_iter_idx - min_iter_idx
+    # print(attr_min_mid, max_subfile_mid, min_iter_idx, max_iter_idx, max_iter)
+    # print(id_label_df.iloc[min_iter_idx:max_iter_idx, :])
+    # raise NotImplementedError
     if max_subfile_mid < attr_min_mid:
         raise NotImplementedError("Out range!!")
 
@@ -143,6 +152,9 @@ def parse_X_Y(dir_root="../../Irish_CER_data_formated",
         mid_ts = metersUtil.iterateMeter(mid, reformatDF)
         # ==========================
         if mid_ts is None:
+            print("mid type is {}, convert to integer..." .format(type(mid)))
+            # mid_ts = metersUtil.iterateMeter(int(mid), reformatDF)
+            # if mid_ts is None:
             print("skip meter id: {}".format(mid))
             continue
 
@@ -266,8 +278,9 @@ def load_np_inds(file):
 
 n_ = 50
 #
-for fname in ["File1", "File2", "File3", "File4"]:
+for fname in ["File1", "File2", "File3", "File4"]: # "File1", "File2", "File3",
     # X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_income_id_label) # .iloc[0:1000,:]
+
     X, Y = parse_X_Y(filename="reformated_{:s}.txt".format(fname), nsample_per_mid=n_, id_label_df=df_floor_id_label) # .iloc[0:1000,:]
     np.savez_compressed('../Data_IrishCER/floor/n{:d}perID_{:s}.npz'.format(n_, fname), X=X, Y=Y)
 #     print("==== save the file: {:s} ====".format(fname))
