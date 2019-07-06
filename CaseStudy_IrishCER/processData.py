@@ -242,7 +242,7 @@ def get_train_hold_split(tensors_dict, th_frac, save_folder):
 
 def get_loaders_tth(arrays_dict, bsz):
     train_loader = DataLoader(TensorDataset(
-        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=False, batch_size=bsz)
+        arrays_dict['X_train'], arrays_dict['Y_train']), shuffle=True, batch_size=bsz)
     test_loader  = DataLoader(TensorDataset(
         arrays_dict['X_test'], arrays_dict['Y_test']), shuffle=False, batch_size=bsz)
     hold_loader  = DataLoader(TensorDataset(
