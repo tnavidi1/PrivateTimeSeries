@@ -9,8 +9,8 @@ import nets
 
 # print(torch.__version__)
 
-data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER')
-data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/income')
+data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
+data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
 dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=64)
 
 
@@ -20,10 +20,10 @@ def convert_onehot(y_label, alphabet_size=6):
     y_oh = one_hot.scatter_(1, (y_.data), 1) # if y is from 1 to 6
     return y_oh
 
-def convert_income_label(y_label):
+def convert_binary_label(y_label, median=4):
     y_ = y_label.squeeze()
     # print(y_)
-    y_.apply_(lambda x: 1 if x >=4 else 0)
+    y_.apply_(lambda x: 1 if x >=median else 0)
     # print(y_)
     # raise NotImplementedError
     return y_.long()
@@ -45,7 +45,8 @@ def run_raw_classification(dataloader, lr=1e-3, iter_max=10):
                 # print(X, Y)
                 optimizer_clf.zero_grad()
                 y_out= clf(X)
-                y_labels = convert_income_label(Y-1)
+                # y_labels = convert_binary_label(Y-1)
+                y_labels = convert_binary_label(Y, 1500)
                 # y_labels = (Y-1).long().squeeze()
                 loss = F.cross_entropy(y_out, y_labels, weight=None,
                                        ignore_index=-100, reduction='mean')
