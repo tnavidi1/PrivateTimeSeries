@@ -66,7 +66,8 @@ def load_cached_files(dir_root='../Data_IrishCER', attr='income', filename='File
 
 # df_income_id_label = metersUtil.load_static_attr('income')
 
-df_floor_id_label = metersUtil.load_static_attr('floor')
+df_floor_id_label = metersUtil.load_static_attr('floor',
+                                                filepath='../Data_IrishCER/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv')
 
 # print(df_floor_id_label.iloc[55:300,:])
 # raise NotImplementedError
