@@ -77,4 +77,5 @@ def run_raw_classification(dataloader, lr=1e-3, iter_max=10):
                 #                  total_counts='{:d}'.format(tot_cnt),
                 #                  acc='{:.3e}'.format(float(correct_cnt)/tot_cnt))
 
+
 run_raw_classification(dataloader_dict['train'], lr=2e-4, iter_max=400)

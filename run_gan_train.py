@@ -101,7 +101,7 @@ if __name__ == '__main__':
             idx += 1
 
     print(x_dat.shape)
-    print(kdkd)
+    # print(kdkd)
     # labels = np.random.binomial(1, 0.5, (N, 1))
 
     filters = np.arange(50)
