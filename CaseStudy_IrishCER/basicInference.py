@@ -22,10 +22,7 @@ def convert_onehot(y_label, alphabet_size=6):
 
 def convert_binary_label(y_label, median=4):
     y_ = y_label.squeeze()
-    # print(y_)
     y_.apply_(lambda x: 1 if x >=median else 0)
-    # print(y_)
-    # raise NotImplementedError
     return y_.long()
 
 
