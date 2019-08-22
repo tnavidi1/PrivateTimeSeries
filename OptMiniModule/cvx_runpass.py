@@ -18,9 +18,6 @@ def forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=False):
     eqCon = A * x_ == b if neq > 0 else None
     if nineq > 0:
         slacks = cp.Variable(nineq)  # define slack variables
-        print(slacks.size)
-        # print("G shape", G.shape)
-        # print(G * x_)
         ineqCon =  G * x_ + slacks == h
         slacksCon = slacks >= 0
     else:
