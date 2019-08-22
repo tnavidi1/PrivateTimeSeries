@@ -1,0 +1,78 @@
+import torch
+
+
+
+def convert_binary_label(y_label, median=4):
+    if y_label.shape[1] == 1:
+        y_ = y_label.squeeze()
+        y_.apply_(lambda x: 1 if x >=median else 0)
+        return y_.long()
+    else:
+        raise NotImplementedError("reshape y label: current size is {} ".format(y_label.shape))
+
+
+
+def construct_G_batt_raw(T=24):
+    """
+    :@description
+
+    We construct a G matrix in the senario of Battery charging without demand
+    G = [[I 0 0] [-I 0 0 ] [0 I 0] [0 -I 0] [0 0 I] [0 0 -I]]
+
+    :param T: time horizon
+    :return: G matrix which is a torch tensor
+    """
+
+    G_1 = torch.cat([torch.eye(T), -torch.eye(T),
+                     torch.zeros((T,T)), torch.zeros((T,T)),
+                     torch.zeros((T,T)), torch.zeros((T,T))], dim=0)  # 1st block-column
+    G_2 = torch.cat([torch.zeros((T,T)), torch.zeros((T,T)),
+                     torch.eye(T), -torch.eye(T),
+                     torch.zeros((T,T)), torch.zeros((T,T))], dim=0)  # 2nd block-column
+    G_3 = torch.cat([torch.zeros((T,T)), torch.zeros((T,T)),
+                     torch.zeros((T,T)), torch.zeros((T,T)),
+                     torch.eye(T), -torch.eye(T)], dim=0)     # 3rd block-column
+    G = torch.cat([G_1, G_2, G_3], dim=1)
+
+    return G
+
+
+def construct_h_batt_raw(T=24, c_i=1, c_o=1, batt_B=2):
+    """
+    We construct a h vector that comprise charging-in capacity $c_{in}$, discharging capacity $c_{out}$
+    :param T:
+    :param c_i:
+    :param c_o:
+    :param batt_B:
+    :return:
+    """
+    h = torch.cat([torch.ones(T)*c_i, torch.zeros(T), \
+               torch.ones(T)*c_o, torch.zeros(T), \
+                torch.ones(T)*batt_B, torch.zeros(T)], dim=0)
+
+    return h
+
+
+def construct_A_batt_raw(T=24, eta=0.9):
+    """
+
+    :param T:
+    :return:
+    """
+    A1 = torch.cat([torch.zeros(2*T), torch.cat([torch.ones(1), torch.zeros(T-1)], dim=0)], dim=0)
+    A1 = A1.unsqueeze(0)
+    I_ = torch.eye(T-1) # (T-1) x (T-1)
+    A2 = torch.cat( [torch.cat([I_*eta, torch.zeros((T-1,1))], dim=1),
+                     torch.cat([-I_, torch.zeros((T-1, 1))], dim=1),
+                     torch.cat([I_, torch.zeros((T-1,1))], dim=1)-torch.cat([torch.zeros((T-1,1)), I_], dim=1)], dim=1)
+    A = torch.cat([A1, A2], dim=0)
+    return A
+
+
+def construct_b_batt_raw(T=24, init_batt=1):
+    b = torch.cat([torch.Tensor([init_batt]), torch.zeros(T-1)], dim=0)
+    return b
+
+
+
+

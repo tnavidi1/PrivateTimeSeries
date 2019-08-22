@@ -51,7 +51,7 @@ def iterateMeter(id, cache):
 ## ==================================================
 
 def load_static_attr(attr_name,
-                     filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv",
+                     filepath="../../Irish_CER_data_formatted/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv",
                      device=None):
 
     # income ""
@@ -78,7 +78,7 @@ def load_static_attr(attr_name,
         raise NotImplementedError("not implemented the keyword")
     return res_table
 
-def _load_static_meterids(filepath="../../Irish_CER_data_formated/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
+def _load_static_meterids(filepath="../../Irish_CER_data_formatted/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"):
     """
     this loading id method is a dum
     :param filepath:

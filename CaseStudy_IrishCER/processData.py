@@ -66,13 +66,19 @@ def load_cached_files(dir_root='../Data_IrishCER', attr='income', filename='File
 
 # df_income_id_label = metersUtil.load_static_attr('income')
 
+# df_floor_id_label = metersUtil.load_static_attr('floor',
+#                                                 filepath='../Data_IrishCER/Survey_data_CSV_formatted/Smart_meters_Residential_pre-trial_survey_data.csv')
+
+#"../../Irish_CER_data_formatted/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv"
+
 df_floor_id_label = metersUtil.load_static_attr('floor',
-                                                filepath='../Data_IrishCER/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv')
+                                                filepath="../../Irish_CER_data_formatted/Survey_data_CSV_format/Smart_meters_Residential_pre-trial_survey_data.csv")
+
 
 # print(df_floor_id_label.iloc[55:300,:])
 # raise NotImplementedError
 
-def parse_X_Y(dir_root="../../Irish_CER_data_formated",
+def parse_X_Y(dir_root="../../Irish_CER_data_formatted",
                      filename="reformated_File1.txt", nsample_per_mid=50,
                      id_label_df=None ): # .iloc[0:1000,:]):
     """
