@@ -35,7 +35,7 @@ def check(dataloader):
     Q = optMini_util.construct_Q_batt_raw(T, beta1=0.5, beta2=0.5, gamma=0.5)
     q, price = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=0.5, alpha=0.2)
 
-    print(price)
+    # print(price)
     # # print(G)
     # print("G shape ", G.shape)
     # # print(h)
@@ -55,23 +55,27 @@ def check(dataloader):
     A = optMini_util.to_np(A)
     b = optMini_util.to_np(b)
     price = optMini_util.to_np(price.squeeze(1))
-    # print("G shape numpy version", G.shape)
-    # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)
-    obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)
-    # print(obj, x_sol, nu, lam, slacks)
-    # print(x_sol[:24] - x_sol[24:48])
-    # plt.bar(range(len(x_sol)), x_sol)
-    # plt.show()
 
-    plt.figure(figsize=(6, 4))
-    plt.bar(np.arange(1, 25)-0.2, x_sol[:24] - x_sol[24:48], width=0.4, label='Net charging')
-    plt.bar(np.arange(1, 25)+0.2, price, width=0.4, label='Price')
-    plt.legend(fontsize=15)
-    plt.xlabel('Hour of Day', fontsize=18)
-    plt.tick_params(labelsize=16)
-    plt.tight_layout()
-    plt.savefig('../fig/basic_charging_plot.png')
-    # plt.show()
+    ################################
+    # solving the optimization by cvx
+    obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True) # gurobi
+    # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
+    # print(obj, x_sol, nu, lam, slacks)
+    ################################
+    # check battery status
+    print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
+    print(np.round(x_sol[2*T:], 3))
+    ################################
+    # # plot figure
+    # plt.figure(figsize=(6, 4))
+    # plt.bar(np.arange(1, 25)-0.2, x_sol[:24] - x_sol[24:48], width=0.4, label='Net charging')
+    # plt.bar(np.arange(1, 25)+0.2, price, width=0.4, label='Price')
+    # plt.legend(fontsize=15)
+    # plt.xlabel('Hour of Day', fontsize=18)
+    # plt.tick_params(labelsize=16)
+    # plt.tight_layout()
+    # plt.savefig('../fig/basic_charging_plot.png')
+    # # plt.show()
     ################################
     raise NotImplementedError
     with tqdm(dataloader) as pbar:
