@@ -110,9 +110,8 @@ Barrier solved model in 14 iterations and 0.01 seconds
 Optimal objective -4.24939505e+00
 ```
 
-![battery_charging_sim1][basic_batt_plot]
+![battery_charging_sim1](fig/basic_charging_plot.png)  
 
-[basic_batt_plot]: fig/basic_charging_plot.png
 
 
 
