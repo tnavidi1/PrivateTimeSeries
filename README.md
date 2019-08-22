@@ -1,4 +1,4 @@
-# PrivateTimeSeries
+# Private DER control based on Time Series Meter Data
 
 
 ## Setup and Dependencies
