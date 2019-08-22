@@ -7,6 +7,8 @@ sys.path.append("..")
 
 import cvxpy as cp
 
+import matplotlib.pyplot as plt
+
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
 
@@ -30,10 +32,10 @@ def check(dataloader):
     h = optMini_util.construct_h_batt_raw(T, c_i=1, c_o=1, batt_B=B)
     A = optMini_util.construct_A_batt_raw(T, eta=0.95)
     b = optMini_util.construct_b_batt_raw(T, batt_init=B/2)
-    Q = optMini_util.construct_Q_batt_raw(T, beta1=0.1, beta2=0.1, gamma=0.2)
-    q = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=0.2, alpha=0.2)
+    Q = optMini_util.construct_Q_batt_raw(T, beta1=0.5, beta2=0.5, gamma=0.5)
+    q, price = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=0.5, alpha=0.2)
 
-
+    print(price)
     # # print(G)
     # print("G shape ", G.shape)
     # # print(h)
@@ -52,11 +54,23 @@ def check(dataloader):
     h = optMini_util.to_np(h)
     A = optMini_util.to_np(A)
     b = optMini_util.to_np(b)
+    price = optMini_util.to_np(price.squeeze(1))
     # print("G shape numpy version", G.shape)
     # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)
-    optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)
+    obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)
+    # print(obj, x_sol, nu, lam, slacks)
+    # print(x_sol[:24] - x_sol[24:48])
+    # plt.bar(range(len(x_sol)), x_sol)
+    # plt.show()
 
-
+    plt.figure(figsize=(8, 6))
+    plt.bar(np.arange(1, 25)-0.2, x_sol[:24] - x_sol[24:48], width=0.4, label='Net charging')
+    plt.bar(np.arange(1, 25)+0.2, price, width=0.4, label='Price')
+    plt.legend()
+    plt.xlabel('Hour of Day')
+    plt.tight_layout()
+    plt.savefig('../fig/basic_charging_plot.png')
+    # plt.show()
     ################################
     raise NotImplementedError
     with tqdm(dataloader) as pbar:

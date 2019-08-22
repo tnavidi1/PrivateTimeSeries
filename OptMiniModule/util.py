@@ -110,5 +110,5 @@ def construct_q_batt_raw(T=24, price=None, batt_B=1, gamma=0.5, alpha=0.2):
         price = price.reshape(T, 1)
 
     q = torch.cat([price, -price, -2*gamma*alpha*batt_B*torch.ones((T,1))], dim=0)
-    return q
+    return q, price
 
