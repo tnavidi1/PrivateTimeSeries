@@ -1,4 +1,19 @@
 import torch
+import numpy as np
+
+
+def to_np(t):
+    """
+    expect to receive tensor
+    :param t:
+    :return:
+    """
+    if t is None:
+        return None
+    elif t.nelement() == 0:
+        return np.array([])
+    else:
+        return t.cpu().numpy()
 
 
 
@@ -50,7 +65,7 @@ def construct_h_batt_raw(T=24, c_i=1, c_o=1, batt_B=2):
                torch.ones(T)*c_o, torch.zeros(T), \
                 torch.ones(T)*batt_B, torch.zeros(T)], dim=0)
 
-    return h
+    return h.unsqueeze(1)
 
 
 def construct_A_batt_raw(T=24, eta=0.9):
@@ -69,10 +84,31 @@ def construct_A_batt_raw(T=24, eta=0.9):
     return A
 
 
-def construct_b_batt_raw(T=24, init_batt=1):
-    b = torch.cat([torch.Tensor([init_batt]), torch.zeros(T-1)], dim=0)
-    return b
+def construct_b_batt_raw(T=24, batt_init=1):
+    b = torch.cat([torch.tensor([batt_init]),
+                   torch.zeros(T-1)], dim=0)
+    return b.unsqueeze(1)
 
 
 
+def construct_Q_batt_raw(T=24, beta1=0.5, beta2=0.5, gamma=0.1):
+    vec = torch.cat([torch.ones(T)*beta1, torch.ones(T)*beta2, torch.ones(T)*gamma], dim=0)
+    Q=torch.diag(vec)
+    return Q
+
+
+def construct_q_batt_raw(T=24, price=None, batt_B=1, gamma=0.5, alpha=0.2):
+
+    if price is None:
+        torch.manual_seed(2)
+        price = torch.rand((T, 1))
+
+    if price.shape == (T, ):
+        price=price.unsqueeze(1)
+
+    if price.shape == (1, T):
+        price = price.reshape(T, 1)
+
+    q = torch.cat([price, -price, -2*gamma*alpha*batt_B*torch.ones((T,1))], dim=0)
+    return q
 

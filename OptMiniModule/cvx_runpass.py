@@ -13,12 +13,15 @@ def forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=False):
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
 
     x_ = cp.Variable(nz)
-
+    # print("x size {}, num of ineq {}".format(x_.size, nineq))
     obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_)
     eqCon = A * x_ == b if neq > 0 else None
     if nineq > 0:
         slacks = cp.Variable(nineq)  # define slack variables
-        ineqCon = G * x_ + slacks == h
+        print(slacks.size)
+        # print("G shape", G.shape)
+        # print(G * x_)
+        ineqCon =  G * x_ + slacks == h
         slacksCon = slacks >= 0
     else:
         ineqCon = slacks = slacksCon = None
