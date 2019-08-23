@@ -113,6 +113,77 @@ Optimal objective -4.24939505e+00
 ![battery_charging_sim1](fig/Batt_basic_charging_plot.png)  
 ![battery_charging_sim1](fig/Batt_with_demand_charging_plot.png)  
 
+***
+We did a runtime test comparing CVX-GROUBI, CVX-CVXOPT, DIFFCP 
+1. **CVX-GROUBI** takes 0.035 second, 
+2. **CVX-CVXOPT** takes 0.023 second, 
+3. **DIFFCP** takes 0.0035 second (x10 faster)
 
+```python
+     pcost       dcost       gap    pres   dres   k/t
+ 0: -8.5285e-01 -2.1208e+00  1e+02  1e+01  4e+00  1e+00
+ 1: -1.1381e+00  9.2365e-02  6e+00  2e+00  6e-01  2e+00
+ 2: -1.0803e+00 -9.4980e-01  6e-01  2e-01  8e-02  2e-01
+ 3: -1.1664e+00 -1.1523e+00  7e-02  3e-02  9e-03  2e-02
+ 4: -1.1755e+00 -1.1738e+00  9e-03  3e-03  1e-03  2e-03
+ 5: -1.1769e+00 -1.1766e+00  2e-03  8e-04  3e-04  5e-04
+ 6: -1.1770e+00 -1.1770e+00  1e-03  4e-04  1e-04  2e-04
+ 7: -1.1772e+00 -1.1772e+00  5e-05  2e-05  6e-06  7e-06
+ 8: -1.1772e+00 -1.1772e+00  1e-06  4e-07  2e-07  9e-08
+ 9: -1.1772e+00 -1.1772e+00  4e-08  1e-08  4e-09  2e-09
+Optimal solution found.
+[CVX - CVXOPT] Compute solution : 0.0353 s.
+Academic license - for non-commercial use only
+Parameter OutputFlag unchanged
+   Value: 1  Min: 0  Max: 1  Default: 1
+Changed value of parameter QCPDual to 1
+   Prev: 0  Min: 0  Max: 1  Default: 0
+Optimize a model with 82 rows, 63 columns and 141 nonzeros
+Model has 1 quadratic constraint
+Coefficient statistics:
+  Matrix range     [9e-01, 2e+00]
+  QMatrix range    [1e+00, 1e+00]
+  Objective range  [2e-01, 7e-01]
+  Bounds range     [0e+00, 0e+00]
+  RHS range        [8e-01, 2e+00]
+Presolve removed 62 rows and 32 columns
+Presolve time: 0.00s
+Presolved: 21 rows, 32 columns, 48 nonzeros
+Presolved model has 1 second-order cone constraint
+Ordering time: 0.00s
+
+Barrier statistics:
+ Dense cols : 1
+ AA' NZ     : 3.600e+01
+ Factor NZ  : 1.100e+02
+ Factor Ops : 7.300e+02 (less than 1 second per iteration)
+ Threads    : 1
+
+                  Objective                Residual
+Iter       Primal          Dual         Primal    Dual     Compl     Time
+   0  -6.59758992e+00 -1.43068768e+01  6.26e+00 8.08e-01  3.49e+00     0s
+   1  -3.46990218e-01 -1.14530660e+01  6.88e-06 2.54e-03  2.42e-01     0s
+   2  -8.27114260e-01 -2.01352986e+00  7.57e-12 1.91e-04  2.58e-02     0s
+   3  -1.01523682e+00 -1.26379404e+00  1.42e-14 9.34e-06  5.41e-03     0s
+   4  -1.16730935e+00 -1.19005195e+00  1.87e-14 2.90e-07  4.94e-04     0s
+   5  -1.17339695e+00 -1.17813502e+00  3.79e-13 5.22e-08  1.03e-04     0s
+   6  -1.17697485e+00 -1.17728617e+00  3.22e-14 2.64e-10  6.77e-06     0s
+   7  -1.17716632e+00 -1.17720091e+00  1.42e-11 4.97e-12  7.52e-07     0s
+   8  -1.17719777e+00 -1.17719935e+00  6.14e-10 3.78e-13  3.43e-08     0s
+
+Barrier solved model in 8 iterations and 0.00 seconds
+Optimal objective -1.17719777e+00
+
+Solving KKT system to obtain QCP duals...
+
+
+[CVX - GUROBI] Compute solution : 0.0227 s.
+f 35
+l 30
+q [17]
+s []
+ep 0
+[DIFFCP] Compute solution and set up derivative: 0.0035 s.
+``` 
 
 

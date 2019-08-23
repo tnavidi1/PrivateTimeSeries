@@ -11,10 +11,11 @@ import matplotlib.pyplot as plt
 
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
+import OptMiniModule.diffcp.cones as cone_lib
 
 import numpy as np
 desired_width = 300
-np.set_printoptions(precision=3, linewidth=desired_width)
+np.set_printoptions(precision=4, linewidth=desired_width)
 
 torch.set_printoptions(profile="full", linewidth=400)
 
@@ -23,8 +24,23 @@ data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_Iri
 dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=100)
 
 
+def _check_verbose_sol_byCVX(x_sol, T):
 
-def check_basic(param_set=None, plotfig=False):
+    print("=" * 100)
+    print(np.expand_dims(x_sol.round(4), 1))
+    print("=" * 100)
+    print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
+    print(np.round(x_sol[2*T:], 3))
+    print("=" * 100)
+
+
+def _check_verbose_sol_byDIFFCP(x_sol, T):
+    print("=" * 100)
+    print(np.expand_dims(x_sol[:(3*T)].round(4), 1))
+    print("=" * 100)
+
+
+def check_basic(param_set=None, plotfig=False, debug=False, cp_solver=cp.CVXOPT):
     if not isinstance(param_set, dict):
         raise NotImplementedError("wrong type of param set: {}".format( param_set))
 
@@ -57,17 +73,13 @@ def check_basic(param_set=None, plotfig=False):
 
     ################################
     # solving the optimization by cvx
-    obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True) # gurobi
+    obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp_solver, verbose=True) # gurobi
     # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
     # print(obj, x_sol, nu, lam, slacks)
     ################################
     # check battery status
-    print("=" * 100)
-    print(np.expand_dims(x_sol.round(4), 1))
-    print("=" * 100)
-    print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
-    print(np.round(x_sol[2*T:], 3))
-    print("=" * 100)
+    if debug:
+        _check_verbose_sol_byCVX(x_sol, T)
     ################################
     # # plot figure
     if plotfig is True:
@@ -114,7 +126,8 @@ def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
 
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
-    print(h.shape, d.shape)
+    # print(h.shape, d.shape)
+
     h = torch.cat([h, d.view(T, 1)], dim=0)
 
     Q = optMini_util.to_np(Q)
@@ -126,8 +139,7 @@ def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
 
     price = optMini_util.to_np(price.squeeze(1)) # price is already embedded in q, here we just convert it for plotting
 
-
-    obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)  # gurobi
+    obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)  # gurobi
     # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
     # print(obj, x_sol, nu, lam, slacks)
     ################################
@@ -149,7 +161,7 @@ def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
         plt.close('all')
 
 
-def check_basic_csc(param_set=None, plotfig=False):
+def check_basic_csc(param_set=None, plotfig=False, debug=False):
     if not isinstance(param_set, dict):
         raise NotImplementedError("wrong type of param set: {}".format( param_set))
 
@@ -192,10 +204,17 @@ def check_basic_csc(param_set=None, plotfig=False):
     # ################################
     #
     # ###### formulate problem #######
-    x, y, s, D, DT = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
-    print("=" * 100)
-    print(np.expand_dims(x[:3*T].round(3),1))
+    x, y, s, D, DT, A_, b_, c_ = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
+    ##################################
+    if debug:
+        _check_verbose_sol_byDIFFCP(x, T)
+
+    # dx, dy, ds = D(dA, db, dc)
+    # print("size of y and z ", y.size, s.size)
+
+    dA, db, dc = DT(c_, np.zeros(y.size), np.zeros(s.size), atol=1e-5, btol=1e-5)
+    # print(dA, db, dc)
 
 
     # # plot figure
@@ -232,7 +251,8 @@ def run_battery(dataloader, params=None):
 
 
 params = dict(c_i=1, c_o=1, eta_eff=0.95, T=5, B=1.5, beta1=0.5, beta2=0.5, gamma=0.5, alpha=0.2)
-check_basic(param_set=params)
+check_basic(param_set=params, cp_solver=cp.CVXOPT)
+check_basic(param_set=params, cp_solver=cp.GUROBI)
 check_basic_csc(param_set=params)
 
 # run_battery(dataloader_dict['train'], params=params)

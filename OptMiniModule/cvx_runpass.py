@@ -1,6 +1,6 @@
 import cvxpy as cp
 import numpy as np
-
+import time
 import sys
 sys.path.append('..')
 
@@ -16,6 +16,9 @@ except:
 min 1/2 x^T Q x + q^T x \\
 s.t  nu: Ax = b  \\
      lam : Gx <= h  
+
+The corresponding Lagrangian is 
+L(x, \lambda, \mu) =  1/2 x^T Q x + q^T x + \lambda^T (Ax-b) + \mu^T (Gx-h)
 
 """
 
@@ -35,18 +38,25 @@ def forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=False):
 
     cons = [constraint for constraint in [eqCon, ineqCon, slacksCon] if constraint is not None]
     prob = cp.Problem(obj, cons)
+    # ------------------------------
+    # calculate time
+    # ------------------------------
+    start = time.perf_counter()
     prob.solve(solver=sol_opt, verbose=verbose)  # solver=cp.SCS, max_iters=5000, verbose=False)
     # prob.solve(solver=cp.SCS, max_iters=10000, verbose=True)
     assert('optimal' in prob.status)
+    end = time.perf_counter()
+    print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
+
     xhat = np.array(x_.value).ravel()
-    nu = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
+    lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
     if ineqCon is not None:
-        lam = np.array(ineqCon.dual_value).ravel()
+        mu = np.array(ineqCon.dual_value).ravel()
         slacks = np.array(slacks.value).ravel()
     else:
-        lam = slacks = None
+        mu = slacks = None
 
-    return prob.value, xhat, nu, lam, slacks
+    return prob.value, xhat, lam, mu, slacks
 
 
 def scs_data_from_cvxpy_problem(problem, cp_SCS=cp.SCS):
@@ -90,11 +100,17 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
 
     cons = [constraint for constraint in [eqCon, ineqCon, slacksCon] if constraint is not None]
     prob = cp.Problem(obj, cons)
-
+    # The current form only accept
     A, b, c, cone_dims = scs_data_from_cvxpy_problem(prob, sol_opt)
-
+    # ----------------------------
+    # calculate time
+    # ----------------------------
+    start = time.perf_counter()
     x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
         A, b, c, cone_dims, eps=1e-5)
+    # print(A.shape)
+    end = time.perf_counter()
+    print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
 
-    return x, y, s, derivative, adjoint_derivative
+    return x, y, s, derivative, adjoint_derivative, A, b, c
 
