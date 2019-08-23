@@ -95,14 +95,11 @@ def check_basic(param_set=None, plotfig=False, debug=False, cp_solver=cp.CVXOPT)
         plt.savefig('../fig/Batt_basic_charging_plot.png')
         plt.close('all')
     # # plt.show()
-    ################################
-    # raise NotImplementedError
 
 
-
-def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
+def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, cp_solver=cp.CVXOPT):
     """
-
+    This method pass over cvx solving the canonical QP
     :param param_set:
     :param d: demand
     :return:
@@ -139,7 +136,7 @@ def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
 
     price = optMini_util.to_np(price.squeeze(1)) # price is already embedded in q, here we just convert it for plotting
 
-    obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True)  # gurobi
+    obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp_solver, verbose=True)  # gurobi
     # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
     # print(obj, x_sol, nu, lam, slacks)
     ################################
@@ -216,7 +213,6 @@ def check_basic_csc(param_set=None, plotfig=False, debug=False):
     dA, db, dc = DT(c_, np.zeros(y.size), np.zeros(s.size), atol=1e-5, btol=1e-5)
     # print(dA, db, dc)
 
-
     # # plot figure
     # if plotfig is True:
     #     plt.figure(figsize=(6, 4))
@@ -232,7 +228,18 @@ def check_basic_csc(param_set=None, plotfig=False, debug=False):
     #     plt.close('all')
     # # # plt.show()
     ################################
-    # raise NotImplementedError
+
+
+def construct_QP_battery_w_D_conic(param_set=None, plotfig=False, debug=False):
+    """
+    The function serves to convert a quadratic programming problem into
+    :param param_set:
+    :param plotfig:
+    :param debug:
+    :return:
+    """
+
+
 
 
 
