@@ -24,7 +24,7 @@ dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=100)
 
 
 
-def check_basic(param_set=None, plotfig=True):
+def check_basic(param_set=None, plotfig=False):
     if not isinstance(param_set, dict):
         raise NotImplementedError("wrong type of param set: {}".format( param_set))
 
@@ -84,7 +84,7 @@ def check_basic(param_set=None, plotfig=True):
 
 
 
-def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=True):
+def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
     """
 
     :param param_set:
