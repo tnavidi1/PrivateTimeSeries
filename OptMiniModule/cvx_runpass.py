@@ -102,6 +102,9 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
         A, b, c, cone_dims, eps=1e-5)
 
-    print(x)
-    print(y)
-    print(s)
+    # print(np.expand_dims(x.round(3), 1))
+
+    return x, y, s, derivative, adjoint_derivative
+
+    # print(y)
+    # print(s)

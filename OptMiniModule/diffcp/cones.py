@@ -115,7 +115,7 @@ def _proj(x, cone, dual=False):
     elif cone == POS:
         return np.maximum(x, 0)
     elif cone == SOC:
-        print("Second Order Cone: x = {}".format(x))
+        # print("Second Order Cone: x = {}".format(x))
         t = x[0]
         z = x[1:]
         norm_z = np.linalg.norm(z, 2)
@@ -282,7 +282,9 @@ def pi(x, cones, dual=False):
             elif cone == EXP:
                 raise NotImplementedError("exp cone is not supported here yet {}".format(EXP))
                 dim *= 3
-            print("offset:", offset)
+            # ===============================
+            # print("offset:", offset)
+            # ===============================
             projection[offset:offset + dim] = _proj(
                 x[offset:offset + dim], cone, dual=dual)
             offset += dim

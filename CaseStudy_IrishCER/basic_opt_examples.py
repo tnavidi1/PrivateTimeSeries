@@ -1,5 +1,6 @@
 import torch
 from tqdm import tqdm
+# import pprint
 import processData
 import nets
 import sys, os
@@ -14,7 +15,7 @@ import OptMiniModule.cvx_runpass as optMini_cvx
 
 import numpy as np
 desired_width = 300
-np.set_printoptions(precision=5, linewidth=desired_width)
+np.set_printoptions(precision=3, linewidth=desired_width)
 
 torch.set_printoptions(profile="full", linewidth=400)
 
@@ -62,8 +63,12 @@ def check_basic(param_set=None, plotfig=False):
     # print(obj, x_sol, nu, lam, slacks)
     ################################
     # check battery status
+    print("=" * 100)
+    print(np.expand_dims(x_sol.round(4), 1))
+    print("=" * 100)
     print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
     print(np.round(x_sol[2*T:], 3))
+    print("=" * 100)
     ################################
     # # plot figure
     if plotfig is True:
@@ -188,7 +193,9 @@ def check_basic_csc(param_set=None, plotfig=False):
     # ################################
     #
     # ###### formulate problem #######
-    optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    x, y, s, D, DT = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    print("=" * 100)
+    print(np.expand_dims(x[:3*T].round(3),1))
 
 
 
@@ -225,7 +232,7 @@ def run_battery(dataloader, params=None):
 
 
 
-params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.5, beta2=0.5, gamma=0.5, alpha=0.2)
+params = dict(c_i=1, c_o=1, eta_eff=0.95, T=5, B=1.5, beta1=0.5, beta2=0.5, gamma=0.5, alpha=0.2)
 check_basic(param_set=params)
 check_basic_csc(param_set=params)
 
