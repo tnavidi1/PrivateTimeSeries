@@ -7,9 +7,6 @@ except ModuleNotFoundError:
         import OptMiniModule.diffcp.cones as cone_lib
 except:
     FileNotFoundError
-#     from .diffcp import cones as cone_lib
-# except :
-#     raise ModuleNotFoundError
 
 import numpy as np
 import scipy.sparse as sparse

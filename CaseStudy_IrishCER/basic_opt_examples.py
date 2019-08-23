@@ -5,11 +5,6 @@ import nets
 import sys, os
 sys.path.append("..")
 
-# dirpath = os.getcwd()
-# print("current directory is : " + dirpath)
-# foldername = os.path.basename(dirpath)
-# print("Directory name is : " + foldername)
-# raise NotImplementedError
 import cvxpy as cp
 
 import matplotlib.pyplot as plt
