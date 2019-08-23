@@ -92,19 +92,9 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     prob = cp.Problem(obj, cons)
 
     A, b, c, cone_dims = scs_data_from_cvxpy_problem(prob, sol_opt)
-    # print("-" * 30)
-    # print(A)
-    # print("-" * 30)
-    # print(b)
-    # print("-" * 30)
-    # print(c)
-    # print("-" * 30)
+
     x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
         A, b, c, cone_dims, eps=1e-5)
 
-    # print(np.expand_dims(x.round(3), 1))
-
     return x, y, s, derivative, adjoint_derivative
 
-    # print(y)
-    # print(s)

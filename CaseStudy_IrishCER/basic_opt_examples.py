@@ -1,6 +1,5 @@
 import torch
 from tqdm import tqdm
-# import pprint
 import processData
 import nets
 import sys, os
