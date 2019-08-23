@@ -115,8 +115,8 @@ Optimal objective -4.24939505e+00
 
 ***
 We did a runtime test comparing CVX-GROUBI, CVX-CVXOPT, DIFFCP 
-1. **CVX-GROUBI** takes 0.035 second, 
-2. **CVX-CVXOPT** takes 0.023 second, 
+1. **CVX-GROUBI** takes 0.023 second, 
+2. **CVX-CVXOPT** takes 0.035 second, 
 3. **DIFFCP** takes 0.0035 second (x10 faster)
 
 ```python
