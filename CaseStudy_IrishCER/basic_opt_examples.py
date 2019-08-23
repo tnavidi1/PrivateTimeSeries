@@ -2,9 +2,14 @@ import torch
 from tqdm import tqdm
 import processData
 import nets
-import sys
+import sys, os
 sys.path.append("..")
 
+# dirpath = os.getcwd()
+# print("current directory is : " + dirpath)
+# foldername = os.path.basename(dirpath)
+# print("Directory name is : " + foldername)
+# raise NotImplementedError
 import cvxpy as cp
 
 import matplotlib.pyplot as plt
@@ -14,7 +19,7 @@ import OptMiniModule.cvx_runpass as optMini_cvx
 
 import numpy as np
 desired_width = 300
-np.set_printoptions(linewidth=desired_width)
+np.set_printoptions(precision=5, linewidth=desired_width)
 
 torch.set_printoptions(profile="full", linewidth=400)
 
@@ -145,6 +150,72 @@ def construct_QP_battery_w_D(param_set=None, d=None, p=None, plotfig=False):
         plt.close('all')
 
 
+def check_basic_csc(param_set=None, plotfig=False):
+    if not isinstance(param_set, dict):
+        raise NotImplementedError("wrong type of param set: {}".format( param_set))
+
+    c_i = param_set['c_i']
+    c_o = param_set['c_o']
+    eta_eff = param_set['eta_eff']
+    beta1 = param_set['beta1']
+    beta2 = param_set['beta2']
+    gamma = param_set['gamma']
+    alpha = param_set['alpha']
+    B = param_set['B']
+    T = param_set['T']
+
+    # T = 24  # time horizon : 24 hours
+    # B = 1.5
+    G = optMini_util.construct_G_batt_raw(T)
+    h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
+    A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
+    b = optMini_util.construct_b_batt_raw(T, batt_init=B/2)
+    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
+    q, price = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=gamma, alpha=alpha)
+
+    Q = optMini_util.to_np(Q)
+    q = optMini_util.to_np(q)
+    G = optMini_util.to_np(G)
+    h = optMini_util.to_np(h)
+    A = optMini_util.to_np(A)
+    b = optMini_util.to_np(b)
+    price = optMini_util.to_np(price.squeeze(1))
+
+    ################################
+    # solving the optimization by cvx
+    # obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True) # gurobi
+    # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
+    # print(obj, x_sol, nu, lam, slacks)
+    ################################
+    # check battery status
+    # print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
+    # print(np.round(x_sol[2*T:], 3))
+    # ################################
+    #
+    # ###### formulate problem #######
+    optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+
+
+
+    # # plot figure
+    # if plotfig is True:
+    #     plt.figure(figsize=(6, 4))
+    #     plt.bar(np.arange(1, T+1)-0.2, x_sol[:T] - x_sol[T:2*T], width=0.4, label='Net charging')
+    #     plt.bar(np.arange(1, T+1)+0.2, price, width=0.4, label='Price')
+    #     plt.legend(fontsize=15)
+    #     plt.title("Battery Control without Demand")
+    #     plt.xlabel('Time steps (30min interval)', fontsize=16)
+    #     plt.tick_params(labelsize=16)
+    #     plt.ylim([-1.1, 1.1])
+    #     plt.tight_layout()
+    #     plt.savefig('../fig/Batt_basic_charging_plot.png')
+    #     plt.close('all')
+    # # # plt.show()
+    ################################
+    # raise NotImplementedError
+
+
+
 
 
 def run_battery(dataloader, params=None):
@@ -161,4 +232,6 @@ def run_battery(dataloader, params=None):
 
 params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.5, beta2=0.5, gamma=0.5, alpha=0.2)
 check_basic(param_set=params)
-run_battery(dataloader_dict['train'], params=params)
+check_basic_csc(param_set=params)
+
+# run_battery(dataloader_dict['train'], params=params)
