@@ -73,25 +73,7 @@ def _form_QP_params(param_set, p=None):
 
 
 def check_basic(param_set=None, p=None, plotfig=False, debug=False, cp_solver=cp.CVXOPT):
-    # if not isinstance(param_set, dict):
-    #     raise NotImplementedError("wrong type of param set: {}".format( param_set))
 
-    # c_i = param_set['c_i']
-    # c_o = param_set['c_o']
-    # eta_eff = param_set['eta_eff']
-    # beta1 = param_set['beta1']
-    # beta2 = param_set['beta2']
-    # gamma = param_set['gamma']
-    # alpha = param_set['alpha']
-    # B = param_set['B']
-    # T = param_set['T']
-    #
-    # G = optMini_util.construct_G_batt_raw(T)
-    # h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
-    # A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
-    # b = optMini_util.construct_b_batt_raw(T, batt_init=B/2)
-    # Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    # q, price = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=gamma, alpha=alpha)
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
     Q = optMini_util.to_np(Q)
@@ -135,29 +117,10 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
     :param d: demand
     :return:
     """
-    # c_i = param_set['c_i']
-    # c_o = param_set['c_o']
-    # eta_eff = param_set['eta_eff']
-    # beta1 = param_set['beta1']
-    # beta2 = param_set['beta2']
-    # gamma = param_set['gamma']
-    # alpha = param_set['alpha']
-    # B = param_set['B']
-    # T = param_set['T']
-    #
-    # G = optMini_util.construct_G_batt_raw(T)
-    # h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
-    # A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
-    # b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
-    # Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    # q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, gamma=gamma, alpha=alpha)
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
-
-
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
-    # print(h.shape, d.shape)
 
     h = torch.cat([h, d.view(T, 1)], dim=0)
 
@@ -177,6 +140,7 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
     # print(np.round(x_sol[2 * T:], 3))
 
     if plotfig is True:
+        print(h.shape, d.shape)
         price = optMini_util.to_np(price.squeeze(1))  # price is already embedded in q, here we just convert it for plotting
         plt.figure(figsize=(6, 4))
         plt.bar(np.arange(1, T+1)-0.2, x_sol[:T] - x_sol[T:2*T], width=0.4, label='Net charging')
@@ -201,9 +165,6 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
     h = optMini_util.to_np(h)
     A = optMini_util.to_np(A)
     b = optMini_util.to_np(b)
-
-
-
     ################################
     # solving the optimization by cvx
     # obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True) # gurobi
@@ -256,13 +217,10 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     :param debug:
     :return:
     """
-
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
-    # print(h.shape, d.shape)
-
     h = torch.cat([h, d.view(T, 1)], dim=0) # demand d is from data input
 
     Q = optMini_util.to_np(Q)
@@ -276,6 +234,7 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
     if debug:
+        print(h.shape, d.shape)
         _debug_check_verbose_sol_byDIFFCP(x_sol, T)
 
     # dx, dy, ds = D(dA, db, dc)
