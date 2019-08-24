@@ -186,6 +186,7 @@ Comparison in batched solvers
 
 Ex. random batch 1 
 ![batt_batch_solving](fig/batch_sol_comparison_batch_0.png)
+
 Ex. random batch 2
 ![batt_batch_solving](fig/batch_sol_comparison_batch_1.png)
 
