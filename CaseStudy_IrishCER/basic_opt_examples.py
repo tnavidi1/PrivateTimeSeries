@@ -192,25 +192,6 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
 
 
 def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
-    # if not isinstance(param_set, dict):
-    #     raise NotImplementedError("wrong type of param set: {}".format( param_set))
-
-    # c_i = param_set['c_i']
-    # c_o = param_set['c_o']
-    # eta_eff = param_set['eta_eff']
-    # beta1 = param_set['beta1']
-    # beta2 = param_set['beta2']
-    # gamma = param_set['gamma']
-    # alpha = param_set['alpha']
-    # B = param_set['B']
-    # T = param_set['T']
-    #
-    # G = optMini_util.construct_G_batt_raw(T)
-    # h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
-    # A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
-    # b = optMini_util.construct_b_batt_raw(T, batt_init=B/2)
-    # Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    # q, price = optMini_util.construct_q_batt_raw(T, price=None, batt_B=B, gamma=gamma, alpha=alpha)
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
@@ -275,25 +256,6 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     :param debug:
     :return:
     """
-    # if not isinstance(param_set, dict):
-    #     raise NotImplementedError("wrong type of param set: {}".format( param_set))
-    #
-    # c_i = param_set['c_i']
-    # c_o = param_set['c_o']
-    # eta_eff = param_set['eta_eff']
-    # beta1 = param_set['beta1']
-    # beta2 = param_set['beta2']
-    # gamma = param_set['gamma']
-    # alpha = param_set['alpha']
-    # B = param_set['B']
-    # T = param_set['T']
-    #
-    # G = optMini_util.construct_G_batt_raw(T)
-    # h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
-    # A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
-    # b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
-    # Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    # q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, gamma=gamma, alpha=alpha)
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
@@ -391,7 +353,7 @@ def run_battery(dataloader, params=None):
             # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
             construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
-            if k > 1:
+            if k > 2:
                 raise NotImplementedError
 
 
