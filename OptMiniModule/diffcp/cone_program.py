@@ -45,6 +45,21 @@ def solve_and_derivative_wrapper(A, b, c, cone_dict, warm_start, kwargs):
 
 
 def solve_and_derivative_batch(As, bs, cs, cone_dicts, n_jobs=-1, warm_starts=None, **kwargs):
+    """
+    Canonical form of
+         min   c^T x
+         s.t.  Ax + s = b
+               s \in K
+
+    :param As: list of A matrices
+    :param bs: list of b vectors
+    :param cs: list of c vectors
+    :param cone_dicts: list of cone dictionaries
+    :param n_jobs:  num of process
+    :param warm_starts:
+    :param kwargs:
+    :return:
+    """
     if n_jobs == -1:
         n_jobs = mp.cpu_count()
     batch_size = len(As)

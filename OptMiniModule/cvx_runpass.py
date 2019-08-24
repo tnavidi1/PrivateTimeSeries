@@ -41,12 +41,12 @@ def forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=False):
     # ------------------------------
     # calculate time
     # ------------------------------
-    start = time.perf_counter()
+    # start = time.perf_counter()
     prob.solve(solver=sol_opt, verbose=verbose)  # solver=cp.SCS, max_iters=5000, verbose=False)
     # prob.solve(solver=cp.SCS, max_iters=10000, verbose=True)
     assert('optimal' in prob.status)
-    end = time.perf_counter()
-    print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
+    # end = time.perf_counter()
+    # print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
 
     xhat = np.array(x_.value).ravel()
     lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
@@ -100,17 +100,23 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
 
     cons = [constraint for constraint in [eqCon, ineqCon, slacksCon] if constraint is not None]
     prob = cp.Problem(obj, cons)
-    # The current form only accept
+    # The current form only accept cvx problem and scs solver option
     A, b, c, cone_dims = scs_data_from_cvxpy_problem(prob, sol_opt)
+    # @note: after converting into scs conic form
+    # The A, b, c here represents general form of :
+    #      min  c^T x
+    #    s.t.   Ax + s = b
+    #           s \in \mathcal{K}
+    #  where K is a cone
     # ----------------------------
     # calculate time
     # ----------------------------
-    start = time.perf_counter()
+    # start = time.perf_counter()
     x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
         A, b, c, cone_dims, eps=1e-5)
     # print(A.shape)
-    end = time.perf_counter()
-    print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
+    # end = time.perf_counter()
+    # print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
 
     return x, y, s, derivative, adjoint_derivative, A, b, c
 
