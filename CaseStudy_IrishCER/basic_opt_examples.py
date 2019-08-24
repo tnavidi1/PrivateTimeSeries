@@ -21,7 +21,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=24)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=50)
 
 
 def _debug_check_verbose_sol_byCVX(x_sol, T):
@@ -281,7 +281,8 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
     As = [optMini_util.to_np(A) for i in range(bs)]
     bs = [optMini_util.to_np(b) for i in range(bs)]
 
-    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch = optMini_cvx.conic_transform_batch(Qs, qs, Gs, hs, As, bs, n_process=10)
+    # note : the following method solves the conic form of convex program
+    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch, As_batch, bs_batch, cs_batch = optMini_cvx.conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, n_process=10)
     xs_batch = extract_xsols(x_sols_batch, T=T)
 
 
@@ -305,14 +306,14 @@ def run_battery(dataloader, params=None):
     # init price
     _default_horizon_ = 48
     torch.manual_seed(2)
-    price = torch.rand((_default_horizon_, 1))
+    price = torch.rand((_default_horizon_, 1))  # price is a column vector
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
             # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
             construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
-            if k > 2:
+            if k > 20:
                 raise NotImplementedError
 
 
