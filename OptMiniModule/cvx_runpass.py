@@ -120,3 +120,54 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
 
     return x, y, s, derivative, adjoint_derivative, A, b, c
 
+
+
+def __single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp.SCS):
+    nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
+    x_ = cp.Variable(nz)
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_)
+    eqCon = A * x_ == b if neq > 0 else None
+    if nineq > 0:
+        slacks = cp.Variable(nineq)  # define slack variables
+        ineqCon = G * x_ + slacks == h
+        slacksCon = slacks >= 0
+    else:
+        ineqCon = slacks = slacksCon = None
+
+    cons = [constraint for constraint in [eqCon, ineqCon, slacksCon] if constraint is not None]
+    prob = cp.Problem(obj, cons)
+    A, b, c, cone_dims = scs_data_from_cvxpy_problem(prob, sol_opt)
+    return [A, b, c, cone_dims]
+
+
+def conic_transform_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS):
+
+    results = np.array([__single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp_sol) for Q, q, G, h, A, b in zip(Qs, qs, Gs, hs, As, bs)])
+    # print(np.array(results).shape)
+    As_ = results[:, 0]
+    bs_ = results[:, 1]
+    cs_ = results[:, 2]
+    cons_dims_list = results[:, 3]
+
+    # print(As_)
+    # print(bs_)
+    # print(cs_)
+    # print(cons_dims_list)
+
+    res = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=6, eps=1e-5)
+    # x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=6, eps=1e-5)
+    # print(x)
+    # print("==" * 40)
+    # print(y)
+    # print("==" * 40)
+    # print(res.shape)
+    # [x, y, s, derivative, adjoint_derivative for x, y, s, derivative, adjoint_derivative in res]
+    res = np.array(res)
+
+    x_sols_batch =res[:, 0]
+    y_sols_batch =res[:, 1]
+    s_sols_batch =res[:, 2]
+    derivative_batch =res[:, 3]
+    adjoint_derivative = res[:, 4]
+
+    return  x_sols_batch, y_sols_batch, s_sols_batch, derivative_batch, adjoint_derivative
