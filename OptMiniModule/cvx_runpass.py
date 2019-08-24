@@ -72,7 +72,7 @@ def scs_data_from_cvxpy_problem(problem, cp_SCS=cp.SCS):
 
 
 
-def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
+def conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     """
 
     :param Q:
@@ -120,6 +120,8 @@ def cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     return x, y, s, derivative, adjoint_derivative, A, b, c
 
 # code up for batched cvx solver wrapper
+def forward_single_np_cvx_wrapper()
+
 def cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.SCS, n_process = 4):
 
 

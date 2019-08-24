@@ -177,7 +177,7 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
     # ################################
     #
     # ###### formulate & solve problem #######
-    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
     ##################################
     if debug:
@@ -231,7 +231,7 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     b = optMini_util.to_np(b)
 
     # ###### formulate & solve problem #######
-    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.cvx_format_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
     if debug:
         print(h.shape, d.shape)
