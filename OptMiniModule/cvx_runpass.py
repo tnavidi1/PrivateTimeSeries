@@ -12,6 +12,10 @@ except:
     FileNotFoundError
 
 
+import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
+
+
 """
 min 1/2 x^T Q x + q^T x \\
 s.t  nu: Ax = b  \\
@@ -120,10 +124,22 @@ def conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     return x, y, s, derivative, adjoint_derivative, A, b, c
 
 # code up for batched cvx solver wrapper
-def forward_single_np_cvx_wrapper()
+def forward_single_np_cvx_wrapper(Q, q, G, h, A, b, cp_sol=cp.CVXOPT, verbose=False):
+    return forward_single_np(Q, q, G, h, A, b, sol_opt=cp_sol, verbose=verbose)
 
-def cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.SCS, n_process = 4):
+# code up for batched cvx call -- using multiprocess
+def cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.SCS, n_jobs = 1, verbose=False):
 
+    if n_jobs == -1:
+        n_jobs = mp.cpu_count()
+    batch_size = len(As)
+    pool = ThreadPool(processes=n_jobs)
+    args = []
+    for i in range(batch_size):
+        args += [(Qs[i], qs[i], Gs[i], hs[i], As[i], bs[i], cp_sol, verbose)]
+        # args += [(As[i], bs[i], cs[i], cone_dicts[i],
+        #           None if warm_starts is None else warm_starts[i], kwargs)]
+    return pool.starmap(forward_single_np_cvx_wrapper, args)
 
 
 
@@ -147,22 +163,16 @@ def __single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp.SCS):
     return [A, b, c, cone_dims]
 
 
-def conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_process=4):
+def conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_jobs=4):
 
     results = np.array([__single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp_sol) \
                         for Q, q, G, h, A, b in zip(Qs, qs, Gs, hs, As, bs)])
-    # print(np.array(results).shape)
     As_ = results[:, 0]
     bs_ = results[:, 1]
     cs_ = results[:, 2]
     cons_dims_list = results[:, 3]
 
-    # print(As_)
-    # print(bs_)
-    # print(cs_)
-    # print(cons_dims_list)
-
-    res = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=n_process, eps=1e-5)
+    res = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=n_jobs, eps=1e-5)
     res = np.array(res)
 
     x_sols_batch =res[:, 0]

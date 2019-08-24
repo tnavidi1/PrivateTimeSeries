@@ -110,8 +110,8 @@ Barrier solved model in 14 iterations and 0.01 seconds
 Optimal objective -4.24939505e+00
 ```
 
-![battery_charging_sim1](fig/Batt_basic_charging_plot.png)  
-![battery_charging_sim1](fig/Batt_with_demand_charging_plot.png)  
+![battery_charging_sim1](fig/Batt_basic_charging_plot_cvx.png)  
+![battery_charging_sim2](fig/Batt_with_demand_charging_plot_cvx.png)  
 
 ***
 We did a runtime test comparing CVX-GROUBI, CVX-CVXOPT, DIFFCP 
@@ -178,12 +178,16 @@ Solving KKT system to obtain QCP duals...
 
 
 [CVX - GUROBI] Compute solution : 0.0227 s.
-f 35
-l 30
-q [17]
-s []
-ep 0
 [DIFFCP] Compute solution and set up derivative: 0.0035 s.
 ``` 
+
+***
+Comparison in batched solvers
+
+Ex. random batch 1 
+![batt_batch_solving](fig/batch_sol_comparison_batch_0.png)
+Ex. random batch 2
+![batt_batch_solving](fig/batch_sol_comparison_batch_1.png)
+
 
 

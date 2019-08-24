@@ -21,7 +21,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=50)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=10)
 
 
 def _debug_check_verbose_sol_byCVX(x_sol, T):
@@ -70,6 +70,17 @@ def _form_QP_params(param_set, p=None):
 
     return [Q, q, G, h, A, b, T, price]
 
+
+
+def _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=0):
+    fig, ax = plt.subplots(2, 1, figsize=(6, 4))
+    ax[0].plot(x_sol_cvx.T)
+    ax[0].set_title("cvx solution")
+    ax[1].plot(x_sol_conic.T)
+    ax[1].set_title("conic solution")
+    plt.tight_layout()
+    plt.savefig('../fig/batch_sol_comparison_batch_%d.png' % batch)
+    plt.close(fig)
 
 
 def check_basic(param_set=None, p=None, plotfig=False, debug=False, cp_solver=cp.CVXOPT):
@@ -260,9 +271,45 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
         plt.savefig('../fig/Batt_with_demand_charging_plot_conic.png')
         plt.close('all')
 
+##################################
+def _convert_to_np_arr(X, j):
+    xs = np.array([x_[j].tolist() for x_ in X])
+    return xs
+
+def _convert_to_np_scalars(X, j):
+    xs = np.array([x_[j] for x_ in X])
+    return xs
 
 
-def extract_xsols(Xs, T=48):
+def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, debug=False):
+    bs = D.shape[0]
+    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
+    G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
+    G = torch.cat([G, G_append], dim=0)
+
+    Gs = [optMini_util.to_np(G) for i in range(bs)]
+    hs = [optMini_util.to_np(torch.cat([h, d.view(T, 1)], dim=0)) for d in D]  # demand d is from data input
+    Qs = [optMini_util.to_np(Q) for i in range(bs)]
+    qs = [optMini_util.to_np(q) for i in range(bs)]
+    As = [optMini_util.to_np(A) for i in range(bs)]
+    bs = [optMini_util.to_np(b) for i in range(bs)]
+
+    res = optMini_cvx.cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.GUROBI, n_jobs = 6)
+    objs_batch = _convert_to_np_scalars(res, 0)
+    xs_batch = _convert_to_np_arr(res, 1)
+    lams_batch = _convert_to_np_arr(res, 2)
+    mus_batch = _convert_to_np_arr(res, 3)
+    slacks_batch = _convert_to_np_arr(res, 4)
+
+    if debug:
+        print(xs_batch.shape)
+
+    return xs_batch
+
+
+
+
+def _extract_xsols_from_conic_sol(Xs, T=48):
     xs = np.array([x.tolist() for x in Xs])
     x_sols = xs[:, 0:3*T]
     return x_sols
@@ -282,8 +329,9 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
     bs = [optMini_util.to_np(b) for i in range(bs)]
 
     # note : the following method solves the conic form of convex program
-    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch, As_batch, bs_batch, cs_batch = optMini_cvx.conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, n_process=10)
-    xs_batch = extract_xsols(x_sols_batch, T=T)
+    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch, As_batch, bs_batch, cs_batch = optMini_cvx.conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, n_jobs=10)
+    xs_batch = _extract_xsols_from_conic_sol(x_sols_batch, T=T)
+
 
 
     if debug:
@@ -298,7 +346,7 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
         # print(Qs[0])
         print("-" * 40)
         # print(qs)
-
+    return xs_batch
 
 
 def run_battery(dataloader, params=None):
@@ -310,10 +358,13 @@ def run_battery(dataloader, params=None):
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
-            # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
-            # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
-            construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
-            if k > 20:
+            construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
+            construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
+            x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, debug=False)
+            x_sol_conic = construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
+
+            _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
+            if k > 1:
                 raise NotImplementedError
 
 
@@ -321,7 +372,7 @@ def run_battery(dataloader, params=None):
 
 params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT)
-# check_basic(param_set=params, cp_solver=cp.GUROBI)
-# check_basic_csc(param_set=params)
+check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
+check_basic_csc(param_set=params, plotfig=True)
 
 run_battery(dataloader_dict['train'], params=params)
