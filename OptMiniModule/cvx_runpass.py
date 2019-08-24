@@ -140,7 +140,7 @@ def __single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp.SCS):
     return [A, b, c, cone_dims]
 
 
-def conic_transform_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS):
+def conic_transform_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_process=4):
 
     results = np.array([__single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp_sol) for Q, q, G, h, A, b in zip(Qs, qs, Gs, hs, As, bs)])
     # print(np.array(results).shape)
@@ -154,7 +154,7 @@ def conic_transform_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS):
     # print(cs_)
     # print(cons_dims_list)
 
-    res = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=6, eps=1e-5)
+    res = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=n_process, eps=1e-5)
     # x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative_batch(As_, bs_, cs_, cons_dims_list, n_jobs=6, eps=1e-5)
     # print(x)
     # print("==" * 40)

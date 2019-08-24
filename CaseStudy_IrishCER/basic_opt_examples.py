@@ -360,7 +360,7 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
     As = [optMini_util.to_np(A) for i in range(bs)]
     bs = [optMini_util.to_np(b) for i in range(bs)]
 
-    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch = optMini_cvx.conic_transform_batch(Qs, qs, Gs, hs, As, bs)
+    x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch = optMini_cvx.conic_transform_batch(Qs, qs, Gs, hs, As, bs, n_process=10)
     # print(x_sols_batch.shape)
     xs_batch = extract_xsols(x_sols_batch, T=T)
 
@@ -391,7 +391,7 @@ def run_battery(dataloader, params=None):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
             # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
-            construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=True)
+            construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
             if k > 1:
                 raise NotImplementedError
 

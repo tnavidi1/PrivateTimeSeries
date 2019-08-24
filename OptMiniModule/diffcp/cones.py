@@ -272,7 +272,7 @@ def pi(x, cones, dual=False):
     projection = np.zeros(x.shape)
     offset = 0
     for cone, sz in cones:
-        print(cone, sz)
+        # print(cone, sz) # only uncomment for debug
         sz = sz if isinstance(sz, (tuple, list)) else (sz,)
         if sum(sz) == 0:
             continue
