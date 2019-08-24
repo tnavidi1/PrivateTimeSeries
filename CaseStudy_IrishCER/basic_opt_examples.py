@@ -361,7 +361,6 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
     bs = [optMini_util.to_np(b) for i in range(bs)]
 
     x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch = optMini_cvx.conic_transform_batch(Qs, qs, Gs, hs, As, bs, n_process=10)
-    # print(x_sols_batch.shape)
     xs_batch = extract_xsols(x_sols_batch, T=T)
 
 
