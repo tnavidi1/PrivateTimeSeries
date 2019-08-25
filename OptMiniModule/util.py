@@ -112,3 +112,29 @@ def construct_q_batt_raw(T=24, price=None, batt_B=1, gamma=0.5, alpha=0.2):
     q = torch.cat([price, -price, -2*gamma*alpha*batt_B*torch.ones((T,1))], dim=0)
     return q, price
 
+
+
+def sample_gaussian(m, v):
+    """
+    Element-wise application reparameterization trick to sample from Gaussian
+
+    Args:
+        m: tensor: (batch, ...): Mean
+        v: tensor: (batch, ...): Variance
+
+    Return:
+        z: tensor: (batch, ...): Samples
+    """
+    ################################################################################
+    # TODO: Modify/complete the code here
+    # Sample z
+    ################################################################################
+
+    eps_ = torch.randn_like(m)
+    b_covs = eps_ * torch.sqrt(v)
+    z = m + b_covs
+
+    ################################################################################
+    # End of code modification
+    ################################################################################
+    return z
