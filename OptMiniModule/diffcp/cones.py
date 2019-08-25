@@ -272,7 +272,7 @@ def pi(x, cones, dual=False):
     projection = np.zeros(x.shape)
     offset = 0
     for cone, sz in cones:
-        # print(cone, sz) # only uncomment for debug
+        print(cone, sz) # only uncomment for debug
         sz = sz if isinstance(sz, (tuple, list)) else (sz,)
         if sum(sz) == 0:
             continue
@@ -283,7 +283,7 @@ def pi(x, cones, dual=False):
                 raise NotImplementedError("exp cone is not supported here yet {}".format(EXP))
                 dim *= 3
             # ===============================
-            # print("offset:", offset)
+            print("offset:", offset)
             # ===============================
             projection[offset:offset + dim] = _proj(
                 x[offset:offset + dim], cone, dual=dual)

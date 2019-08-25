@@ -5,6 +5,7 @@ import nets
 import sys, os
 sys.path.append("..")
 
+import time
 import cvxpy as cp
 
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=10)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=40)
 
 
 def _debug_check_verbose_sol_byCVX(x_sol, T):
@@ -192,8 +193,36 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
 
     ##################################
     if debug:
+        # print("===" * 20)
+        print("=== [DEBUG] ===")
         _debug_check_verbose_sol_byDIFFCP(x_sol, T)
-
+        # print("===" * 20)
+        print("A:")
+        print(A, A.shape)
+        print("===" * 20)
+        print("G:")
+        print(G, G.shape)
+        print("===" * 20)
+        print("Q:")
+        print(Q)
+        print("L = LU(Q):")
+        print(np.linalg.cholesky(Q))
+        print(np.linalg.cholesky(Q)*2)
+        print(np.linalg.cholesky(Q)*np.sqrt(2))
+        print("===" * 20)
+        print("b:")
+        print(b)
+        print("===" * 20)
+        print("h:")
+        print(h)
+        print("===" * 20)
+        print("q:")
+        print(q)
+        print("---" * 20)
+        print(A_.todense(), A_.shape)
+        print(b_, b_.shape)
+        print("c:")
+        print(c_, c_.shape)
     # dx, dy, ds = D(dA, db, dc)
     # print("size of y and z ", y.size, s.size)
 
@@ -282,19 +311,19 @@ def _convert_to_np_scalars(X, j):
 
 
 def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, debug=False):
-    bs = D.shape[0]
+    batch_size = D.shape[0]
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
 
-    Gs = [optMini_util.to_np(G) for i in range(bs)]
+    Gs = [optMini_util.to_np(G) for i in range(batch_size)]
     hs = [optMini_util.to_np(torch.cat([h, d.view(T, 1)], dim=0)) for d in D]  # demand d is from data input
-    Qs = [optMini_util.to_np(Q) for i in range(bs)]
-    qs = [optMini_util.to_np(q) for i in range(bs)]
-    As = [optMini_util.to_np(A) for i in range(bs)]
-    bs = [optMini_util.to_np(b) for i in range(bs)]
+    Qs = [optMini_util.to_np(Q) for i in range(batch_size)]
+    qs = [optMini_util.to_np(q) for i in range(batch_size)]
+    As = [optMini_util.to_np(A) for i in range(batch_size)]
+    bs = [optMini_util.to_np(b) for i in range(batch_size)]
 
-    res = optMini_cvx.cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.GUROBI, n_jobs = 6)
+    res = optMini_cvx.cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.GUROBI, n_jobs = 10)
     objs_batch = _convert_to_np_scalars(res, 0)
     xs_batch = _convert_to_np_arr(res, 1)
     lams_batch = _convert_to_np_arr(res, 2)
@@ -315,18 +344,18 @@ def _extract_xsols_from_conic_sol(Xs, T=48):
     return x_sols
 
 def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=False):
-    bs = D.shape[0] # bs == batch size
+    batch_size = D.shape[0] # bs == batch size
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
 
-    Gs = [optMini_util.to_np(G) for i in range(bs)]
+    Gs = [optMini_util.to_np(G) for i in range(batch_size)]
     hs = [optMini_util.to_np(torch.cat([h, d.view(T, 1)], dim=0)) for d in D] # demand d is from data input
-    Qs = [optMini_util.to_np(Q) for i in range(bs)]
-    qs = [optMini_util.to_np(q) for i in range(bs)]
-    As = [optMini_util.to_np(A) for i in range(bs)]
-    bs = [optMini_util.to_np(b) for i in range(bs)]
+    Qs = [optMini_util.to_np(Q) for i in range(batch_size)]
+    qs = [optMini_util.to_np(q) for i in range(batch_size)]
+    As = [optMini_util.to_np(A) for i in range(batch_size)]
+    bs = [optMini_util.to_np(b) for i in range(batch_size)]
 
     # note : the following method solves the conic form of convex program
     x_sols_batch, y_sols_batch, s_sols_batch, Ds_batch, DTs_batch, As_batch, bs_batch, cs_batch = optMini_cvx.conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, n_jobs=10)
@@ -358,21 +387,27 @@ def run_battery(dataloader, params=None):
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
-            construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
-            construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
+            # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
+            # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
+            start = time.perf_counter()
             x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, debug=False)
+            end = time.perf_counter()
+            print("[CVX - %s] Compute solution : %.4f s." % (cp.GUROBI, end - start))
+            start = time.perf_counter()
             x_sol_conic = construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
-
-            _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
-            if k > 1:
+            end = time.perf_counter()
+            print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
+            # _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
+            if k > 0:
                 raise NotImplementedError
 
 
 
 
-params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+# params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=2, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT)
-check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
-check_basic_csc(param_set=params, plotfig=True)
+# check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
+check_basic_csc(param_set=params, plotfig=False, debug=True)
 
-run_battery(dataloader_dict['train'], params=params)
+# run_battery(dataloader_dict['train'], params=params)
