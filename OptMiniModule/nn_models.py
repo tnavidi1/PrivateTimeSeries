@@ -37,7 +37,7 @@ class OptPrivModel(nn.Module):
         self.A = A
         self.b = b
 
-        self.GAMMA = Parameter(torch.rand((T, T)).double())
+        self.GAMMA = Parameter(torch.rand((T, T)))
 
         # Set prior as fixed parameter attached to Module
         # TODO - fix it when prior is non-Gaussian
@@ -76,8 +76,9 @@ class OptPrivModel(nn.Module):
         """
         batch_size = D.shape[0]
         z_noise = self.sample_z(batch=batch_size)
-        print(z_noise)
-        out = z_noise.matmul(self.GAMMA.T)
+        print("z-noise:", z_noise.shape)
+        print("GAMMA:", self.GAMMA.shape)
+        out = z_noise.matmul(self.GAMMA.t())
         print(out)
         # input.matmul(weight.t())
 
