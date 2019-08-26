@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.autograd import Function, Variable
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
-
+# from torch._jit_internal import weak_script_method
 
 import sys
 sys.path.append('..')
@@ -21,6 +21,11 @@ except ModuleNotFoundError:
     import OptMiniModule.util as ut
 except:
     FileNotFoundError("util import error")
+
+
+
+
+
 
 
 class OptPrivModel(nn.Module):
@@ -54,7 +59,7 @@ class OptPrivModel(nn.Module):
         # self.b = Variable(torch.ones(A_shape[0]).double())
         ##################################################
 
-
+    # @weak_script_method
     def forward(self, D):
         """
         input Demand
@@ -63,10 +68,12 @@ class OptPrivModel(nn.Module):
         """
         batch_size = D.shape[0]
         z_noise = self.sample_z(batch=batch_size)
+        print(z_noise)
+        out = z_noise.matmul(self.GAMMA.T)
+        print(out)
+        # input.matmul(weight.t())
 
-
-
-        pass
+        raise NotImplementedError
 
 
 
