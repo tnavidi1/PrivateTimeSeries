@@ -2,7 +2,7 @@
 
 `diffcp` is a Python package [https://github.com/cvxgrp/diffcp] 
 
-We make use of the fast projection in the homogenous cone for optimal solution. Then we inject noise and leverage the SGD or Proxmal mathed. 
+We make use of the fast projection in the homogenous cone for optimal solution. Then we inject noise and leverage the SGD or Proximal mathed. 
 
 
 ##### Dependency requirements:
