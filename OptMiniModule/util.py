@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+import scipy.special as sci_sp
 
 def to_np(t):
     """
@@ -138,3 +138,22 @@ def sample_gaussian(m, v):
     # End of code modification
     ################################################################################
     return z
+
+
+def function_normal_cdf(z):
+    """
+    The cumulative of the unit normal distribution is given by Phi(z) = 1/2[1 + erf(z/sqrt(2))]
+    :param z: 
+    :return: 
+    """
+
+    return .5 + .5 * sci_sp.erf(z / np.sqrt(2));
+
+
+def function_normal_cdf_inv(t):
+    """
+    inverse of standard unit normal:
+        normal_cdf_inv(t):
+    :return: -sqrt(2) * erfinv(1 - 2 * t);
+    """
+    return -np.sqrt(2)*sci_sp.erfinv(1-2*t)

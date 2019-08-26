@@ -191,4 +191,9 @@ Ex. random batch 2
 ![batt_batch_solving](fig/batch_sol_comparison_batch_1.png)
 
 
+***
+For the stochastic optimization:
+
+$$ E_{p^T x_i - p^T x_o}
+$$ 
 
