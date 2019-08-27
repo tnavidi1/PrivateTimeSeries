@@ -194,5 +194,6 @@ Ex. random batch 2
 ***
 For the stochastic optimization:
 
-$`E_{p^T x_i - p^T x_o}`$ 
+<a href="https://www.codecogs.com/eqnedit.php?latex=\dpi{120}&space;\large&space;\mathbb{E}_{\varepsilon}&space;[\frac{1}{2}x^TQx&space;&plus;&space;q^Tx&space;&plus;&space;p^T(d&plus;\Gamma\varepsilon)_{&plus;}&space;]&space;\\&space;s.t.\\&space;\quad&space;\textbf{Prob}\{&space;(d&plus;\Gamma\varepsilon)&space;>&space;0&space;)\}&space;\geq&space;1&space;-&space;\delta&space;\\&space;\quad&space;\textbf{Prob}\{&space;(x_i&space;-&space;x_o&space;&plus;&space;d&space;&plus;&space;\Gamma\varepsilon)&space;>&space;0&space;\}&space;\geq&space;1&space;-&space;\delta" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\dpi{120}&space;\large&space;\mathbb{E}_{\varepsilon}&space;[\frac{1}{2}x^TQx&space;&plus;&space;q^Tx&space;&plus;&space;p^T(d&plus;\Gamma\varepsilon)_{&plus;}&space;]&space;\\&space;s.t.\\&space;\quad&space;\textbf{Prob}\{&space;(d&plus;\Gamma\varepsilon)&space;>&space;0&space;)\}&space;\geq&space;1&space;-&space;\delta&space;\\&space;\quad&space;\textbf{Prob}\{&space;(x_i&space;-&space;x_o&space;&plus;&space;d&space;&plus;&space;\Gamma\varepsilon)&space;>&space;0&space;\}&space;\geq&space;1&space;-&space;\delta" title="\large \mathbb{E}_{\varepsilon} [\frac{1}{2}x^TQx + q^Tx + p^T(d+\Gamma\varepsilon)_{+} ] \\ s.t.\\ \quad \textbf{Prob}\{ (d+\Gamma\varepsilon) > 0 )\} \geq 1 - \delta \\ \quad \textbf{Prob}\{ (x_i - x_o + d + \Gamma\varepsilon) > 0 \} \geq 1 - \delta" /></a>
 
+remaining constraints...  
