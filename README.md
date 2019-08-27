@@ -194,6 +194,5 @@ Ex. random batch 2
 ***
 For the stochastic optimization:
 
-$$ E_{p^T x_i - p^T x_o}
-$$ 
+$`E_{p^T x_i - p^T x_o}`$ 
 
