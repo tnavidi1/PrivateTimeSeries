@@ -9,6 +9,8 @@ import time
 import cvxpy as cp
 
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set('paper', style="whitegrid", font_scale=1.5, rc={"lines.linewidth": 2.5}, )
 
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
@@ -191,9 +193,13 @@ def construct_QP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=Fal
 
     # print(T)
 
-    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, T=T, p=price, sol_opt=cp.CVXOPT, verbose=debug)
-
-
+    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, T=T, p=price, sol_opt=cp_solver, verbose=debug)
+    if plotfig:
+        print(GAMMA_hat)
+        plt.figure(figsize=(7, 6))
+        sns.heatmap(GAMMA_hat)
+        plt.tight_layout()
+        plt.savefig('../fig/linear_filter_w1.png')
     pass
 
 # TODO ===end here =====================
@@ -423,7 +429,7 @@ def run_battery(dataloader, params=None):
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
             # FIXME hacking way to check private demand
             # @since 2019/08/27
-            construct_QP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, debug=True)
+            construct_QP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=True, debug=True)
             raise NotImplementedError("Mannul break!")
 
             ### ========== comparison with battery control with non private demand  ============= ###
@@ -442,8 +448,8 @@ def run_battery(dataloader, params=None):
 
 
 
-# params = dict(c_i=1, c_o=1, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=2, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=2, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT)
 # check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
 # check_basic_csc(param_set=params, plotfig=False, debug=True)

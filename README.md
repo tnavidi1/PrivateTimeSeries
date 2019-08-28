@@ -200,6 +200,55 @@ remaining constraints...
 
 
 ## 
+Another pass of solving SDP formulation: 
+
+```python
+
+----------------------------------------------------------------------------
+	SCS v1.2.6 - Splitting Conic Solver
+	(c) Brendan O'Donoghue, Stanford University, 2012-2016
+----------------------------------------------------------------------------
+Lin-sys: sparse-indirect, nnz in A = 23257, CG tol ~ 1/iter^(2.00)
+eps = 1.00e-03, alpha = 1.50, max_iters = 2500, normalize = 1, scale = 1.00
+Variables n = 10874, constraints m = 13564
+Cones:	primal zero / dual free vars: 7200
+	linear vars: 386
+	soc vars: 146, soc blks: 1
+	sd vars: 5832, sd blks: 2
+Setup time: 1.19e-03s
+----------------------------------------------------------------------------
+ Iter | pri res | dua res | rel gap | pri obj | dua obj | kap/tau | time (s)
+----------------------------------------------------------------------------
+     0|      inf       inf       nan      -inf       inf       inf  7.96e-02 
+   100| 1.76e-02  6.85e-03  1.51e-03  1.41e+01  1.41e+01  6.39e-15  4.69e-01 
+   200| 1.12e-03  2.18e-03  1.38e-05  1.40e+01  1.40e+01  6.39e-15  8.44e-01 
+   280| 4.78e-04  9.28e-04  1.43e-05  1.39e+01  1.39e+01  6.39e-15  1.14e+00 
+----------------------------------------------------------------------------
+Status: Solved
+Timing: Solve time: 1.14e+00s
+	Lin-sys: avg # CG iterations: 7.88, avg solve time: 1.07e-03s
+	Cones: avg projection time: 2.79e-03s
+----------------------------------------------------------------------------
+Error metrics:
+dist(s, K) = 2.0021e-09, dist(y, K*) = 1.7703e-09, s'y/|s||y| = 7.1391e-12
+|Ax + s - b|_2 / (1 + |b|_2) = 4.7751e-04
+|A'y + c|_2 / (1 + |c|_2) = 9.2792e-04
+|c'x + b'y| / (1 + |c'x| + |b'y|) = 1.4337e-05
+----------------------------------------------------------------------------
+c'x = 13.8783, -b'y = 13.8779
+============================================================================
+
+```
+
+The filter weight (based on a random vector and single demand) can be visualized as
+
+![batt_linear_filter_w1](fig/linear_filter_w1.png) 
+
+ 
+
+
+
+
 
 One caveat objective   
  

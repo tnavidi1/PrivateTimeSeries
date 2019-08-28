@@ -217,10 +217,12 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, T=48, p=None,
     # print(p.shape, p, np.expand_dims(p, 1))
     # print(p.T * cp.pos(term1))
     # raise NotImplementedError("===== break here =====")
-    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1))
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1) + cp.pos(cp.norm(GAMMA, "nuc") - xi ) )
     # raise NotImplementedError("===== break here =====")
     eqCon = A * x_ == b if neq > 0 else None
-    eqCon_sdp = cp.trace(GAMMA) == xi
+    # eqCon_sdp = cp.trace(GAMMA) == xi
+    # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
+    eqCon_sdp = None
     if nineq > 0:
         slacks = cp.Variable(nineq)  # define slack variables
         ineqCon = G * x_ + slacks == h
@@ -243,9 +245,11 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, T=48, p=None,
     # raise NotImplementedError("===== break here =====")
 
     xhat = np.array(x_.value).ravel()
-    GAMMA_hat = np.array(GAMMA.value).ravel()
+    print("GAMMA:", GAMMA.value)
+    # GAMMA_hat = np.array(GAMMA.value).ravel()
+    GAMMA_hat = np.array(GAMMA.value)
     lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
-    lam_sdp = np.array(eqCon_sdp.dual_value).ravel() if eqCon is not None else None
+    lam_sdp = np.array(eqCon_sdp.dual_value).ravel() if eqCon_sdp is not None else None
     if ineqCon is not None:
         mu = np.array(ineqCon.dual_value).ravel()
         slacks = np.array(slacks.value).ravel()
