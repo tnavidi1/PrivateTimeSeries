@@ -143,7 +143,7 @@ def sample_gaussian(m, v):
 def function_normal_cdf(z):
     """
     The cumulative of the unit normal distribution is given by Phi(z) = 1/2[1 + erf(z/sqrt(2))]
-    :param z: 
+    :param z:
     :return: 
     """
 

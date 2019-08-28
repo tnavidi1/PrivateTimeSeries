@@ -167,6 +167,37 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
         plt.close('all')
 
 
+
+# TODO ================================
+# @since 2019/08/27
+# the scenario of privatized demand
+def construct_QP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+
+    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
+    # FIXME now just comment out the positive demand constriant
+    # G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
+    # G = torch.cat([G, G_append], dim=0)
+
+    Q = optMini_util.to_np(Q)
+    q = optMini_util.to_np(q)
+    G = optMini_util.to_np(G)
+    h = optMini_util.to_np(h)
+    A = optMini_util.to_np(A)
+    b = optMini_util.to_np(b)
+    price = optMini_util.to_np(price.squeeze(1))
+    d = optMini_util.to_np(d)  # convert torch tensor to numpy
+    epsilon = np.random.rand(T)
+    xi = 0.03
+
+    # print(T)
+
+    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, T=T, p=price, sol_opt=cp.CVXOPT, verbose=debug)
+
+
+    pass
+
+# TODO ===end here =====================
+
 def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
@@ -381,7 +412,8 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
 def run_battery(dataloader, params=None):
     ## multiple iterations
     # init price
-    _default_horizon_ = 48
+
+    _default_horizon_ = params['T'] if params is not None else 48
     torch.manual_seed(2)
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
     with tqdm(dataloader) as pbar:
@@ -389,6 +421,12 @@ def run_battery(dataloader, params=None):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
             # construct_QP_battery_w_D_cvx(param_set=params, d=D[0], p=price, plotfig=False)
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
+            # FIXME hacking way to check private demand
+            # @since 2019/08/27
+            construct_QP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, debug=True)
+            raise NotImplementedError("Mannul break!")
+
+            ### ========== comparison with battery control with non private demand  ============= ###
             start = time.perf_counter()
             x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, debug=False)
             end = time.perf_counter()
@@ -408,6 +446,6 @@ def run_battery(dataloader, params=None):
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=2, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT)
 # check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
-check_basic_csc(param_set=params, plotfig=False, debug=True)
+# check_basic_csc(param_set=params, plotfig=False, debug=True)
 
-# run_battery(dataloader_dict['train'], params=params)
+run_battery(dataloader_dict['train'], params=params)

@@ -182,3 +182,74 @@ def conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_jobs=4)
     adjoint_derivative = res[:, 4]
 
     return  x_sols_batch, y_sols_batch, s_sols_batch, derivative_batch, adjoint_derivative, As_, bs_, cs_
+
+
+
+"""
+1/2 x^T Q x + q^T x + p^T * pos(d+GAMMA \eps) 
+s.t. Ax = b; 
+     Gx <= h;  
+"""
+# this function injest in a single sequence demamnd
+def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+    nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
+    if verbose:
+        print("\n inside the cvx np filter :", T, nz )
+        print([part.shape for part in [Q, q, G, h, A, b]])
+
+    x_ = cp.Variable(nz)
+    # assert T == nz / 3
+    # GAMMA = cp.Semidef(T)
+    p = np.expand_dims(p, 1) # convert the price into a column vector
+    # gammas = [cp.Variable(T) for i in range(T)]
+    GAMMA = cp.Semidef(T)
+
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+    # print("x size {}, num of ineq {}".format(x_.size, nineq))
+    # print(gammas.size, gammas[:,0], gammas[0,:])
+    # raise NotImplementedError("===== break here =====")
+    # term1 = np.array([ (epsilon.T * GAMMA[:,i] + d[i]) for i in range(T)])
+    term1 = GAMMA * epsilon + d
+    # print(eval(term1))
+    # print(d.shape)
+    # print(term1)
+    # print(p.shape, p, np.expand_dims(p, 1))
+    # print(p.T * cp.pos(term1))
+    # raise NotImplementedError("===== break here =====")
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1))
+    # raise NotImplementedError("===== break here =====")
+    eqCon = A * x_ == b if neq > 0 else None
+    eqCon_sdp = cp.trace(GAMMA) == xi
+    if nineq > 0:
+        slacks = cp.Variable(nineq)  # define slack variables
+        ineqCon = G * x_ + slacks == h
+        slacksCon = slacks >= 0
+    else:
+        ineqCon = slacks = slacksCon = None
+
+    cons = [constraint for constraint in [eqCon, eqCon_sdp, ineqCon, slacksCon] if constraint is not None]
+    prob = cp.Problem(obj, cons)
+    # raise NotImplementedError("===== break here =====")
+    # ------------------------------
+    # calculate time
+    # ------------------------------
+    # start = time.perf_counter()
+    prob.solve(solver=sol_opt, verbose=verbose)  # solver=cp.SCS, max_iters=5000, verbose=False)
+    # prob.solve(solver=cp.SCS, max_iters=10000, verbose=True)
+    assert ('optimal' in prob.status)
+    # end = time.perf_counter()
+    # print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
+    # raise NotImplementedError("===== break here =====")
+
+    xhat = np.array(x_.value).ravel()
+    GAMMA_hat = np.array(GAMMA.value).ravel()
+    lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
+    lam_sdp = np.array(eqCon_sdp.dual_value).ravel() if eqCon is not None else None
+    if ineqCon is not None:
+        mu = np.array(ineqCon.dual_value).ravel()
+        slacks = np.array(slacks.value).ravel()
+    else:
+        mu = slacks = None
+
+    return prob.value, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks

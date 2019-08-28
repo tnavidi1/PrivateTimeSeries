@@ -78,8 +78,11 @@ class OptPrivModel(nn.Module):
         z_noise = self.sample_z(batch=batch_size)
         print("z-noise:", z_noise.shape)
         print("GAMMA:", self.GAMMA.shape)
-        out = z_noise.matmul(self.GAMMA.t())
-        print(out)
+        print((self.GAMMA))
+        # out = z_noise.matmul(self.GAMMA.t()) # print(out.shape) # batch_size, dimension
+        D_tilde = D + z_noise.matmul(self.GAMMA.t())
+        D_tilde = F.relu(D_tilde)
+        print(D_tilde.shape, D_tilde)
         # input.matmul(weight.t())
 
         raise NotImplementedError
