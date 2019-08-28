@@ -196,7 +196,7 @@ def construct_QP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=Fal
     obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, T=T, p=price, sol_opt=cp_solver, verbose=debug)
     if plotfig:
         print(GAMMA_hat)
-        plt.figure(figsize=(7, 6))
+        plt.figure(figsize=(6, 5))
         sns.heatmap(GAMMA_hat)
         plt.tight_layout()
         plt.savefig('../fig/linear_filter_w1.png')
