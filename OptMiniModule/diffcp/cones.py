@@ -288,6 +288,8 @@ def pi(x, cones, dual=False):
             projection[offset:offset + dim] = _proj(
                 x[offset:offset + dim], cone, dual=dual)
             offset += dim
+        # debug for deep analysis
+        print("cone type: {:s}, offset: {:d} ".format(cone, offset))
     return projection
 
 

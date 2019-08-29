@@ -8,6 +8,8 @@ sys.path.append("..")
 import time
 import cvxpy as cp
 
+from pprint import pprint
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set('paper', style="whitegrid", font_scale=1.5, rc={"lines.linewidth": 2.5}, )
@@ -27,13 +29,30 @@ data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_Iri
 dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=40)
 
 
+def _create_price(steps_perHr=2):
+    HORIZON = 24
+    T1 = 16
+    T2 = T1 + 5
+    T3 = HORIZON
+    rate_offpeak = 0.202
+    rate_onpeak = 0.463
+    price_shape = np.hstack((rate_offpeak * np.ones((1, T1 * steps_perHr)),
+                             rate_onpeak * np.ones((1, (T2-T1) * steps_perHr)),
+                             rate_offpeak * np.ones((1, (T3-T2) * steps_perHr ))))
+    p = torch.Tensor(price_shape).reshape(-1, 1)
+    return p
+
+
+
+
+
 def _debug_check_verbose_sol_byCVX(x_sol, T):
 
     print("=" * 100)
     print(np.expand_dims(x_sol.round(4), 1))
     print("=" * 100)
-    print(np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
-    print(np.round(x_sol[2*T:], 3))
+    print("one step backward:", np.round(x_sol[:T]*0.95 - x_sol[T:(T+T)] + x_sol[2*T:], 3))
+    print("one step forward:",np.round(x_sol[2*T:], 3))
     print("=" * 100)
 
 
@@ -196,13 +215,14 @@ def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=
 
 
     if debug:
-        print("Obj value: {:.4f}".format(obj))
-        print(_debug_check_verbose_sol_byCVX(xhat, T))
+        print("==== Obj value: {:.4f}".format(obj))
+        print("==== [GAMMA]: ", GAMMA_hat.round(4))
+        _debug_check_verbose_sol_byCVX(xhat, T)
 
 
 
     if plotfig:
-        # print(GAMMA_hat)
+        print(GAMMA_hat.shape)
         plt.figure(figsize=(6, 5))
         sns.heatmap(GAMMA_hat)
         plt.tight_layout()
@@ -230,11 +250,23 @@ def construct_QPSDP_battery_w_privD_conic(param_set=None, d=None, p=None, plotfi
     epsilon = np.random.rand(T)
     xi = 0.03
     delta =0.01
-    x_sol, y, s, derivative, adjoint_derivative, A_, b_, c_ = optMini_cvx.forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=delta,
+    x_sol, y, s, derivative, adjoint_derivative, A_, b_, c_ = optMini_cvx.forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, delta=delta,
                                                      T=T, p=price, sol_opt=cp_solver, verbose=debug)
 
     if debug:
+        print("==== [x_sol]:", x_sol.shape)
         _debug_check_verbose_sol_byDIFFCP(x_sol, T)
+        t_ = (3 * T)
+        # print(x_sol.round(4))
+        # print("potential GAMMA: {}".format(  x_sol[t_: (t_+T*T)].reshape(T, T).transpose()) )
+        print("potential GAMMA:")
+        pprint(x_sol[t_: (t_+T*T)].reshape(T, T).transpose())
+        print("rand vector:", epsilon)
+        print("demand: ", d[:T])
+        print("GAMMA * eps:", x_sol[t_: (t_+T*T)].reshape(T, T).transpose().dot(epsilon.transpose()))
+
+        # print(np.where(y == -4.9808e-05))
+        # print(y.shape)
 
 
 
@@ -385,7 +417,7 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     if plotfig is True:
         price = optMini_util.to_np(price.squeeze(1)) # price is already embedded in q, here we just convert it for plotting
         plt.figure(figsize=(6, 4))
-        plt.bar(np.arange(1, T + 1) - 0.2, x_sol[:T] - x_sol[T:2 * T], width=0.4, label='Net charging')
+        plt.bar(np.arange(1, T + 1) - 0.2, x_sol[:T] - x_sol[T:(2 * T)], width=0.4, label='Net charging')
         plt.bar(np.arange(1, T + 1) + 0.2, price, width=0.4, label='Price')
         plt.legend(fontsize=15)
         plt.title("Battery Control without Demand")
@@ -504,8 +536,8 @@ def run_battery(dataloader, params=None):
 
     _default_horizon_ = params['T'] if params is not None else 48
     torch.manual_seed(2)
-    price = torch.rand((_default_horizon_, 1))  # price is a column vector
-
+    # price = _create_price(steps_perHr=2) + torch.rand((_default_horizon_, 1))* 0.05  # price is a column vector
+    price = torch.rand((_default_horizon_, 1))
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
@@ -543,8 +575,8 @@ def run_battery(dataloader, params=None):
 
 
 
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
-# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=2, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT)
 # check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
 # check_basic_csc(param_set=params, plotfig=False, debug=True)

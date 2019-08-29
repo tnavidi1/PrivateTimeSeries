@@ -303,7 +303,8 @@ def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=
         print([part.shape for part in [Q, q, G, h, A, b]])
 
     x_ = cp.Variable(nz)
-    GAMMA = cp.Semidef(T)
+    # GAMMA = cp.Semidef(T)
+    GAMMA = cp.Variable(rows=T, cols=T)
     # assert T == nz / 3
     # print("x size {}, num of ineq {}".format(x_.size, nineq))
     term1 = GAMMA * epsilon + d
