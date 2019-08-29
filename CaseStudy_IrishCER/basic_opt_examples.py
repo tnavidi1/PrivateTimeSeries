@@ -199,12 +199,8 @@ def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=
     # G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     # G = torch.cat([G, G_append], dim=0)
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
+
     price = optMini_util.to_np(price.squeeze(1))
     d = optMini_util.to_np(d)  # convert torch tensor to numpy
     epsilon = np.random.rand(T)
@@ -239,12 +235,8 @@ def construct_QPSDP_battery_w_privD_conic(param_set=None, d=None, p=None, plotfi
     # G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     # G = torch.cat([G, G_append], dim=0)
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
+
     price = optMini_util.to_np(price.squeeze(1))
     d = optMini_util.to_np(d)  # convert torch tensor to numpy
     epsilon = np.random.rand(T)
@@ -569,16 +561,16 @@ def run_battery(dataloader, params=None):
             end = time.perf_counter()
             print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
             # _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
-            if k > 0:
-                raise NotImplementedError
+            if (k + 1) > 0:
+                raise NotImplementedError("---- Iter {:d} break manually! ----".format(k))
 
 
 
 
 # params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
-# check_basic(param_set=params, cp_solver=cp.CVXOPT)
-# check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=True)
+# check_basic(param_set=params, cp_solver=cp.CVXOPT, plotfig=False)
+# check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=False)
 # check_basic_csc(param_set=params, plotfig=False, debug=True)
 
 run_battery(dataloader_dict['train'], params=params)
