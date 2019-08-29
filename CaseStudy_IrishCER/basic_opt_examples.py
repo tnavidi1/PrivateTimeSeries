@@ -109,12 +109,13 @@ def check_basic(param_set=None, p=None, plotfig=False, debug=False, cp_solver=cp
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    # Q = optMini_util.to_np(Q)
+    # q = optMini_util.to_np(q)
+    # G = optMini_util.to_np(G)
+    # h = optMini_util.to_np(h)
+    # A = optMini_util.to_np(A)
+    # b = optMini_util.to_np(b)
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
     price = optMini_util.to_np(price.squeeze(1))
 
     ################################
@@ -157,12 +158,14 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
 
     h = torch.cat([h, d.view(T, 1)], dim=0)
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    # Q = optMini_util.to_np(Q)
+    # q = optMini_util.to_np(q)
+    # G = optMini_util.to_np(G)
+    # h = optMini_util.to_np(h)
+    # A = optMini_util.to_np(A)
+    # b = optMini_util.to_np(b)
+    #
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
 
     obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp_solver, verbose=True)  # gurobi
     # optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.CVXOPT, verbose=True)  # cvxopt
@@ -291,12 +294,14 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    # Q = optMini_util.to_np(Q)
+    # q = optMini_util.to_np(q)
+    # G = optMini_util.to_np(G)
+    # h = optMini_util.to_np(h)
+    # A = optMini_util.to_np(A)
+    # b = optMini_util.to_np(b)
+
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
     ################################
     # solving the optimization by cvx
     # obj, x_sol, nu, lam, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp.GUROBI, verbose=True) # gurobi
@@ -383,12 +388,14 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     G = torch.cat([G, G_append], dim=0)
     h = torch.cat([h, d.view(T, 1)], dim=0) # demand d is from data input
 
-    Q = optMini_util.to_np(Q)
-    q = optMini_util.to_np(q)
-    G = optMini_util.to_np(G)
-    h = optMini_util.to_np(h)
-    A = optMini_util.to_np(A)
-    b = optMini_util.to_np(b)
+    # Q = optMini_util.to_np(Q)
+    # q = optMini_util.to_np(q)
+    # G = optMini_util.to_np(G)
+    # h = optMini_util.to_np(h)
+    # A = optMini_util.to_np(A)
+    # b = optMini_util.to_np(b)
+
+    [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
 
     # ###### formulate & solve problem #######
     x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.forward_conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
