@@ -191,12 +191,16 @@ def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=
     epsilon = np.random.rand(T)
     xi = 0.03
 
-    # print(T)
-
-    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon,
+    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_d_cvx_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon,
                                                                                               T=T, p=price, sol_opt=cp_solver, verbose=debug)
 
-    print("Obj value: {:.4f}".format(obj))
+
+    if debug:
+        print("Obj value: {:.4f}".format(obj))
+        print(_debug_check_verbose_sol_byCVX(xhat, T))
+
+
+
     if plotfig:
         # print(GAMMA_hat)
         plt.figure(figsize=(6, 5))
@@ -205,8 +209,36 @@ def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=
         plt.savefig('../fig/linear_filter_w1_%s.png'% cp_solver)
     pass
 
-# TODO ==== end here for single demand input ====
+#  ==== [cvx] end here for single demand input ====
 
+#  ==== [conic] start here  ====
+def construct_QPSDP_battery_w_privD_conic(param_set=None, d=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+
+    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
+    # FIXME now just comment out the positive demand constriant
+    # G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
+    # G = torch.cat([G, G_append], dim=0)
+
+    Q = optMini_util.to_np(Q)
+    q = optMini_util.to_np(q)
+    G = optMini_util.to_np(G)
+    h = optMini_util.to_np(h)
+    A = optMini_util.to_np(A)
+    b = optMini_util.to_np(b)
+    price = optMini_util.to_np(price.squeeze(1))
+    d = optMini_util.to_np(d)  # convert torch tensor to numpy
+    epsilon = np.random.rand(T)
+    xi = 0.03
+    delta =0.01
+    x_sol, y, s, derivative, adjoint_derivative, A_, b_, c_ = optMini_cvx.forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=delta,
+                                                     T=T, p=price, sol_opt=cp_solver, verbose=debug)
+
+    if debug:
+        _debug_check_verbose_sol_byDIFFCP(x_sol, T)
+
+
+
+# TODO =================================
 
 def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
 
@@ -253,7 +285,7 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
     # ################################
     #
     # ###### formulate & solve problem #######
-    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.forward_conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
     ##################################
     if debug:
@@ -335,7 +367,7 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     b = optMini_util.to_np(b)
 
     # ###### formulate & solve problem #######
-    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
+    x_sol, y, s, D, DT, A_, b_, c_ = optMini_cvx.forward_conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=True)
 
     if debug:
         print(h.shape, d.shape)
@@ -364,6 +396,14 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
         plt.savefig('../fig/Batt_with_demand_charging_plot_conic.png')
         plt.close('all')
 
+
+
+
+
+
+
+################################################################################
+# THE FOLLOWING function is developed for solving problems in a batched-manner #
 
 ##################################
 ### internal helper functions ####
@@ -473,14 +513,18 @@ def run_battery(dataloader, params=None):
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
             # FIXME hacking way to check private demand
             # @since 2019/08/27
+            # start = time.perf_counter()
+            # construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.MOSEK, plotfig=True, debug=True)
+            # end = time.perf_counter()
+            # print("[CVX - %s] Compute solution : %.4f s." % (cp.MOSEK, end - start))
             start = time.perf_counter()
-            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.MOSEK, plotfig=True, debug=True)
-            end = time.perf_counter()
-            print("[CVX - %s] Compute solution : %.4f s." % (cp.MOSEK, end - start))
-            start = time.perf_counter()
-            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=True, debug=True)
+            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=False, debug=True)
             end = time.perf_counter()
             print("[CVX - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
+
+            construct_QPSDP_battery_w_privD_conic(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, debug=True)
+            print("[DIFFCP - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
+
             raise NotImplementedError("Mannul break!")
 
             ### ========== comparison with battery control with non private demand  ============= ###

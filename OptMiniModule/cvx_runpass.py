@@ -84,7 +84,7 @@ def scs_data_from_cvxpy_problem(problem, cp_SCS=cp.SCS):
 
 
 
-def conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
+def forward_conic_format_solve_problem(Q, q, G, h, A, b, sol_opt=cp.SCS, verbose=False):
     """
 
     :param Q:
@@ -197,8 +197,9 @@ s.t. Ax = b;
      Gx <= h;
      prob( d + GAMMA\eps > 0) > 1-\delta  
 """
+
 # this function injest in a single sequence demamnd
-def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+def forward_single_d_cvx_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
     """
     This function processes the SDP
     :param Q:
@@ -218,17 +219,20 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
     :return:
     """
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
+
+    if p.shape == (T,):
+        p = np.expand_dims(p, 1) # convert the price into a column vector
+
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+
     if verbose:
         print("\n inside the cvx np filter :", T, nz )
         print([part.shape for part in [Q, q, G, h, A, b]])
 
     x_ = cp.Variable(nz)
-    # assert T == nz / 3
-    p = np.expand_dims(p, 1) # convert the price into a column vector
     GAMMA = cp.Semidef(T)
-
-    if d.shape == (T,):
-        d = np.expand_dims(d, 1)
+    # assert T == nz / 3
     # print("x size {}, num of ineq {}".format(x_.size, nineq))
     term1 = GAMMA * epsilon + d
 
@@ -247,7 +251,6 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
 
     cons = [constraint for constraint in cons_collected if constraint is not None]
     prob = cp.Problem(obj, cons)
-    # raise NotImplementedError("===== break here =====")
     # ------------------------------
     # calculate time
     # ------------------------------
@@ -282,5 +285,53 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
         mu = slacks = None
 
     return prob.value, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks
+
+
+# the function contains random vector '\eps', '\xi', 'd' and '\delta'
+def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01,
+                                        T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+    nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
+
+    if p.shape == (T,):
+        p = np.expand_dims(p, 1)  # convert the price into a column vector
+
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+
+    if verbose:
+        print("\n inside the cvx np filter :", T, nz)
+        print([part.shape for part in [Q, q, G, h, A, b]])
+
+    x_ = cp.Variable(nz)
+    GAMMA = cp.Semidef(T)
+    # assert T == nz / 3
+    # print("x size {}, num of ineq {}".format(x_.size, nineq))
+    term1 = GAMMA * epsilon + d
+
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1) + cp.pos(cp.norm(GAMMA, "nuc") - xi))
+    eqCon = A * x_ == b if neq > 0 else None
+    prob_ineqCon = [cp.norm(GAMMA[:, i], 2) <= (d[i, 0] / abs(ut.function_normal_cdf_inv(delta))) for i in
+                    range(T)]  # ut.function_normal_cdf_inv(delta)
+
+    eqCon_sdp = None  # convert the SDP constraint in the objective, # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
+    if nineq > 0:
+        slacks = cp.Variable(nineq)  # define slack variables
+        ineqCon = G * x_ + slacks == h
+        slacksCon = slacks >= 0
+    else:
+        ineqCon = slacks = slacksCon = None
+    cons_collected = [eqCon, eqCon_sdp, ineqCon] + prob_ineqCon + [slacksCon]
+
+    cons = [constraint for constraint in cons_collected if constraint is not None]
+    prob = cp.Problem(obj, cons)
+
+    A_, b_, c_, cone_dims = scs_data_from_cvxpy_problem(prob, cp_SCS=sol_opt)
+
+    x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
+        A_, b_, c_, cone_dims, eps=1e-5)
+    # end = time.perf_counter()
+    # print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
+
+    return x, y, s, derivative, adjoint_derivative, A_, b_, c_
 
 
