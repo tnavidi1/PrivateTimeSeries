@@ -150,8 +150,6 @@ def cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.SCS, n_jobs = 
     return pool.starmap(forward_single_np_cvx_wrapper, args)
 
 
-
-
 # code up for batched conic solver
 def __single_cvxprob_formulate(Q, q, G, h, A, b, sol_opt=cp.SCS):
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
@@ -196,10 +194,29 @@ def conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_jobs=4)
 """
 1/2 x^T Q x + q^T x + p^T * pos(d+GAMMA \eps) 
 s.t. Ax = b; 
-     Gx <= h;  
+     Gx <= h;
+     prob( d + GAMMA\eps > 0) > 1-\delta  
 """
 # this function injest in a single sequence demamnd
 def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+    """
+    This function processes the SDP
+    :param Q:
+    :param q:
+    :param G:
+    :param h:
+    :param A:
+    :param b:
+    :param xi:
+    :param d:
+    :param epsilon:
+    :param delta:
+    :param T:
+    :param p:
+    :param sol_opt:
+    :param verbose:
+    :return:
+    """
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
     if verbose:
         print("\n inside the cvx np filter :", T, nz )
@@ -207,9 +224,7 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
 
     x_ = cp.Variable(nz)
     # assert T == nz / 3
-    # GAMMA = cp.Semidef(T)
     p = np.expand_dims(p, 1) # convert the price into a column vector
-    # gammas = [cp.Variable(T) for i in range(T)]
     GAMMA = cp.Semidef(T)
 
     if d.shape == (T,):
@@ -218,7 +233,6 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
     term1 = GAMMA * epsilon + d
 
     obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1) + cp.pos(cp.norm(GAMMA, "nuc") - xi ) )
-    # raise NotImplementedError("===== break here =====")
     eqCon = A * x_ == b if neq > 0 else None
     prob_ineqCon = [cp.norm(GAMMA[:, i], 2) <= (d[i, 0] / abs(ut.function_normal_cdf_inv(delta))) for i in range(T)] # ut.function_normal_cdf_inv(delta)
 
@@ -239,6 +253,7 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
     # ------------------------------
     # start = time.perf_counter()
     if sol_opt == cp.MOSEK:
+        # mosek params: https://docs.mosek.com/9.0/javafusion/parameters.html
         mosek_param_setting = {"MSK_DPAR_BASIS_TOL_X": 1e-4,
                                "MSK_DPAR_BASIS_TOL_S": 1e-5,
                                "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-5,
@@ -255,11 +270,8 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
     assert ('optimal' in prob.status)
     # end = time.perf_counter()
     # print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
-    # raise NotImplementedError("===== break here =====")
 
     xhat = np.array(x_.value).ravel()
-    # print("GAMMA:", GAMMA.value)
-    # GAMMA_hat = np.array(GAMMA.value).ravel()
     GAMMA_hat = np.array(GAMMA.value)
     lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
     lam_sdp = np.array(eqCon_sdp.dual_value).ravel() if eqCon_sdp is not None else None
@@ -270,3 +282,5 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T
         mu = slacks = None
 
     return prob.value, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks
+
+
