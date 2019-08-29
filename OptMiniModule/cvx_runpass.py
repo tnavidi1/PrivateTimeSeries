@@ -1,6 +1,7 @@
 import cvxpy as cp
 import numpy as np
 import time
+from itertools import chain
 import sys
 sys.path.append('..')
 
@@ -9,7 +10,14 @@ try:
 except ModuleNotFoundError:
     import OptMiniModule.diffcp.cone_program as diffcp_cprog
 except:
-    FileNotFoundError
+    FileNotFoundError("diffcp import error!")
+
+try:
+    import util as ut
+except ModuleNotFoundError:
+    import OptMiniModule.util as ut
+except:
+    FileNotFoundError("util import error!")
 
 
 import multiprocessing as mp
@@ -191,7 +199,7 @@ s.t. Ax = b;
      Gx <= h;  
 """
 # this function injest in a single sequence demamnd
-def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
     if verbose:
         print("\n inside the cvx np filter :", T, nz )
@@ -207,45 +215,50 @@ def forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d, epsilon, T=48, p=None,
     if d.shape == (T,):
         d = np.expand_dims(d, 1)
     # print("x size {}, num of ineq {}".format(x_.size, nineq))
-    # print(gammas.size, gammas[:,0], gammas[0,:])
-    # raise NotImplementedError("===== break here =====")
-    # term1 = np.array([ (epsilon.T * GAMMA[:,i] + d[i]) for i in range(T)])
     term1 = GAMMA * epsilon + d
-    # print(eval(term1))
-    # print(d.shape)
-    # print(term1)
-    # print(p.shape, p, np.expand_dims(p, 1))
-    # print(p.T * cp.pos(term1))
-    # raise NotImplementedError("===== break here =====")
+
     obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1) + cp.pos(cp.norm(GAMMA, "nuc") - xi ) )
     # raise NotImplementedError("===== break here =====")
     eqCon = A * x_ == b if neq > 0 else None
-    # eqCon_sdp = cp.trace(GAMMA) == xi
-    # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
-    eqCon_sdp = None
+    prob_ineqCon = [cp.norm(GAMMA[:, i], 2) <= (d[i, 0] / abs(ut.function_normal_cdf_inv(delta))) for i in range(T)] # ut.function_normal_cdf_inv(delta)
+
+    eqCon_sdp = None  # convert the SDP constraint in the objective, # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
     if nineq > 0:
         slacks = cp.Variable(nineq)  # define slack variables
         ineqCon = G * x_ + slacks == h
         slacksCon = slacks >= 0
     else:
         ineqCon = slacks = slacksCon = None
+    cons_collected = [eqCon, eqCon_sdp, ineqCon] + prob_ineqCon + [slacksCon]
 
-    cons = [constraint for constraint in [eqCon, eqCon_sdp, ineqCon, slacksCon] if constraint is not None]
+    cons = [constraint for constraint in cons_collected if constraint is not None]
     prob = cp.Problem(obj, cons)
     # raise NotImplementedError("===== break here =====")
     # ------------------------------
     # calculate time
     # ------------------------------
     # start = time.perf_counter()
-    prob.solve(solver=sol_opt, verbose=verbose)  # solver=cp.SCS, max_iters=5000, verbose=False)
-    # prob.solve(solver=cp.SCS, max_iters=10000, verbose=True)
+    if sol_opt == cp.MOSEK:
+        mosek_param_setting = {"MSK_DPAR_BASIS_TOL_X": 1e-4,
+                               "MSK_DPAR_BASIS_TOL_S": 1e-5,
+                               "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-5,
+                               "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-5,
+                               "MSK_DPAR_INTPNT_TOL_INFEAS": 1e-5,
+                               "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-5,
+                               "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-5}
+        # The first 5 items might be not important, we discovered that
+        # most relavent metrics is 'MSK_DPAR_INTPNT_CO_TOL_PFEAS' and 'MSK_DPAR_INTPNT_CO_TOL_REL_GAP'
+        prob.solve(solver=sol_opt, verbose=verbose, mosek_params=mosek_param_setting)  # solver=cp.SCS, max_iters=5000, verbose=False)
+    else:
+        prob.solve(solver=sol_opt, verbose=verbose) # e.g. prob.solve(solver=cp.SCS, max_iters=10000, verbose=True)
+
     assert ('optimal' in prob.status)
     # end = time.perf_counter()
     # print("[CVX - %s] Compute solution : %.4f s." % (sol_opt, end - start))
     # raise NotImplementedError("===== break here =====")
 
     xhat = np.array(x_.value).ravel()
-    print("GAMMA:", GAMMA.value)
+    # print("GAMMA:", GAMMA.value)
     # GAMMA_hat = np.array(GAMMA.value).ravel()
     GAMMA_hat = np.array(GAMMA.value)
     lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None

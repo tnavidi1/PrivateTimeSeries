@@ -173,7 +173,7 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
 # TODO ================================
 # @since 2019/08/27
 # the scenario of privatized demand
-def construct_QP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
     # FIXME now just comment out the positive demand constriant
@@ -193,16 +193,43 @@ def construct_QP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=Fal
 
     # print(T)
 
-    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon, T=T, p=price, sol_opt=cp_solver, verbose=debug)
+    obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_cvx_np_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon,
+                                                                                              T=T, p=price, sol_opt=cp_solver, verbose=debug)
+
+    print("Obj value: {:.4f}".format(obj))
     if plotfig:
-        print(GAMMA_hat)
+        # print(GAMMA_hat)
         plt.figure(figsize=(6, 5))
         sns.heatmap(GAMMA_hat)
         plt.tight_layout()
-        plt.savefig('../fig/linear_filter_w1.png')
+        plt.savefig('../fig/linear_filter_w1_%s.png'% cp_solver)
     pass
 
-# TODO ===end here =====================
+# TODO ==== end here for single demand input ====
+
+
+def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+
+    batch_size = D.shape[0]
+
+    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
+    Gs = [optMini_util.to_np(G) for i in range(batch_size)]
+    hs = [optMini_util.to_np(torch.cat([h, d.view(T, 1)], dim=0)) for d in D]  # demand d is from data input
+    Qs = [optMini_util.to_np(Q) for i in range(batch_size)]
+    qs = [optMini_util.to_np(q) for i in range(batch_size)]
+    As = [optMini_util.to_np(A) for i in range(batch_size)]
+    bs = [optMini_util.to_np(b) for i in range(batch_size)]
+
+
+
+    raise NotImplementedError
+
+
+
+
+
+# TODO ==== end here for batched Demand ====
+
 
 def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
 
@@ -337,17 +364,39 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
         plt.savefig('../fig/Batt_with_demand_charging_plot_conic.png')
         plt.close('all')
 
+
 ##################################
+### internal helper functions ####
+##################################
+# @since 2019/08/25
 def _convert_to_np_arr(X, j):
+    """
+    if X is 2d array
+    :param X:
+    :param j:
+    :return:
+    """
     xs = np.array([x_[j].tolist() for x_ in X])
     return xs
 
 def _convert_to_np_scalars(X, j):
+    """
+    if X is a 1d array
+    :param X:
+    :param j:
+    :return:
+    """
     xs = np.array([x_[j] for x_ in X])
     return xs
 
+def _extract_xsols_from_conic_sol(Xs, T=48):
+    xs = np.array([x.tolist() for x in Xs])
+    x_sols = xs[:, 0:(3*T)]
+    return x_sols
 
-def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, debug=False):
+
+
+def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, cp_solver=cp.GUROBI, debug=False):
     batch_size = D.shape[0]
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
@@ -360,7 +409,7 @@ def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, debug=Fal
     As = [optMini_util.to_np(A) for i in range(batch_size)]
     bs = [optMini_util.to_np(b) for i in range(batch_size)]
 
-    res = optMini_cvx.cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol = cp.GUROBI, n_jobs = 10)
+    res = optMini_cvx.cvx_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol =cp_solver, n_jobs = 10)
     objs_batch = _convert_to_np_scalars(res, 0)
     xs_batch = _convert_to_np_arr(res, 1)
     lams_batch = _convert_to_np_arr(res, 2)
@@ -373,12 +422,6 @@ def construct_QP_battery_w_D_cvx_batch(param_set=None, D=None, p=None, debug=Fal
     return xs_batch
 
 
-
-
-def _extract_xsols_from_conic_sol(Xs, T=48):
-    xs = np.array([x.tolist() for x in Xs])
-    x_sols = xs[:, 0:3*T]
-    return x_sols
 
 def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=False):
     batch_size = D.shape[0] # bs == batch size
@@ -422,6 +465,7 @@ def run_battery(dataloader, params=None):
     _default_horizon_ = params['T'] if params is not None else 48
     torch.manual_seed(2)
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
+
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # print(k, D, optMini_util.convert_binary_label(Y, 1500.0))
@@ -429,12 +473,19 @@ def run_battery(dataloader, params=None):
             # construct_QP_battery_w_D_conic(param_set=params, d=D[0], p=price, plotfig=False)
             # FIXME hacking way to check private demand
             # @since 2019/08/27
-            construct_QP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=True, debug=True)
+            start = time.perf_counter()
+            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.MOSEK, plotfig=True, debug=True)
+            end = time.perf_counter()
+            print("[CVX - %s] Compute solution : %.4f s." % (cp.MOSEK, end - start))
+            start = time.perf_counter()
+            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=True, debug=True)
+            end = time.perf_counter()
+            print("[CVX - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
             raise NotImplementedError("Mannul break!")
 
             ### ========== comparison with battery control with non private demand  ============= ###
             start = time.perf_counter()
-            x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, debug=False)
+            x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, cp_solver=cp.GUROBI, debug=False)
             end = time.perf_counter()
             print("[CVX - %s] Compute solution : %.4f s." % (cp.GUROBI, end - start))
             start = time.perf_counter()

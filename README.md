@@ -203,46 +203,114 @@ remaining constraints...
 Another pass of solving SDP formulation: 
 
 ```python
+Problem
+  Name                   :                 
+  Objective sense        : min             
+  Type                   : CONIC (conic optimization problem)
+  Constraints            : 21652           
+  Cones                  : 49              
+  Scalar variables       : 13420           
+  Matrix variables       : 2               
+  Integer variables      : 0               
 
+Optimizer started.
+Presolve started.
+Linear dependency checker started.
+Linear dependency checker terminated.
+Eliminator started.
+Freed constraints in eliminator : 7198
+Eliminator terminated.
+Eliminator started.
+Freed constraints in eliminator : 0
+Eliminator terminated.
+Eliminator - tries                  : 2                 time                   : 0.00            
+Lin. dep.  - tries                  : 1                 time                   : 0.00            
+Lin. dep.  - number                 : 0               
+Presolve terminated. Time: 0.02    
+Problem
+  Name                   :                 
+  Objective sense        : min             
+  Type                   : CONIC (conic optimization problem)
+  Constraints            : 21652           
+  Cones                  : 49              
+  Scalar variables       : 13420           
+  Matrix variables       : 2               
+  Integer variables      : 0               
+
+Optimizer  - threads                : 12              
+Optimizer  - solved problem         : the primal      
+Optimizer  - Constraints            : 12745
+Optimizer  - Cones                  : 50
+Optimizer  - Scalar variables       : 4949              conic                  : 4851            
+Optimizer  - Semi-definite variables: 2                 scalarized             : 5832            
+Factor     - setup time             : 4.16              dense det. time        : 0.00            
+Factor     - ML order time          : 1.32              GP order time          : 0.00            
+Factor     - nonzeros before factor : 4.57e+07          after factor           : 5.96e+07        
+Factor     - dense dim.             : 24                flops                  : 3.63e+11        
+ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME  
+0   3.4e+00  1.0e+00  1.0e+00  0.00e+00   7.500000298e-02   7.500000298e-02   1.0e+00  4.19  
+1   2.2e+00  6.5e-01  9.7e-01  1.84e+00   1.097708454e+01   1.079751833e+01   6.5e-01  10.28 
+2   1.1e+00  3.3e-01  8.5e-01  1.54e+00   2.576035932e+01   2.557483311e+01   3.3e-01  15.72 
+3   1.2e-01  3.7e-02  4.9e-01  1.54e+00   1.718685528e+01   1.714630937e+01   3.7e-02  21.48 
+4   1.7e-02  4.9e-03  1.7e-01  1.20e+00   1.458902876e+01   1.458456633e+01   4.9e-03  27.29 
+5   5.8e-03  1.7e-03  1.1e-01  1.00e+00   1.443021376e+01   1.442858883e+01   1.7e-03  32.86 
+6   8.1e-04  2.4e-04  4.1e-02  1.00e+00   1.434544192e+01   1.434520776e+01   2.4e-04  38.75 
+7   3.1e-04  9.1e-05  2.5e-02  1.00e+00   1.433510769e+01   1.433501940e+01   9.1e-05  44.33 
+8   4.0e-05  1.2e-05  1.2e-05  1.00e+00   1.432987998e+01   1.432986879e+01   1.2e-05  50.00 
+Optimizer terminated. Time: 50.04   
+
+
+Interior-point solution summary
+  Problem status  : PRIMAL_AND_DUAL_FEASIBLE
+  Solution status : OPTIMAL
+  Primal.  obj: 1.4329879984e+01    nrm: 2e+01    Viol.  con: 1e-05    var: 0e+00    barvar: 0e+00    cones: 0e+00  
+  Dual.    obj: 1.4329868790e+01    nrm: 3e+00    Viol.  con: 1e-05    var: 9e-06    barvar: 9e-06    cones: 0e+00  
+Obj value: 14.3299
+[CVX - MOSEK] Compute solution : 50.7230 s.
+
+ inside the cvx np filter : 48 144
+[(144, 144), (144, 1), (288, 144), (288, 1), (48, 144), (48, 1)]
 ----------------------------------------------------------------------------
 	SCS v1.2.6 - Splitting Conic Solver
 	(c) Brendan O'Donoghue, Stanford University, 2012-2016
 ----------------------------------------------------------------------------
-Lin-sys: sparse-indirect, nnz in A = 23257, CG tol ~ 1/iter^(2.00)
+Lin-sys: sparse-indirect, nnz in A = 25657, CG tol ~ 1/iter^(2.00)
 eps = 1.00e-03, alpha = 1.50, max_iters = 2500, normalize = 1, scale = 1.00
-Variables n = 10874, constraints m = 13564
+Variables n = 10922, constraints m = 15964
 Cones:	primal zero / dual free vars: 7200
-	linear vars: 386
-	soc vars: 146, soc blks: 1
+	linear vars: 434
+	soc vars: 2498, soc blks: 49
 	sd vars: 5832, sd blks: 2
-Setup time: 1.19e-03s
+Setup time: 1.27e-03s
 ----------------------------------------------------------------------------
  Iter | pri res | dua res | rel gap | pri obj | dua obj | kap/tau | time (s)
 ----------------------------------------------------------------------------
-     0|      inf       inf       nan      -inf       inf       inf  7.96e-02 
-   100| 1.76e-02  6.85e-03  1.51e-03  1.41e+01  1.41e+01  6.39e-15  4.69e-01 
-   200| 1.12e-03  2.18e-03  1.38e-05  1.40e+01  1.40e+01  6.39e-15  8.44e-01 
-   280| 4.78e-04  9.28e-04  1.43e-05  1.39e+01  1.39e+01  6.39e-15  1.14e+00 
+     0|      inf       inf       nan      -inf       inf       inf  1.14e-01 
+   100| 2.70e-02  1.26e-02  3.51e-04  1.41e+01  1.41e+01  6.99e-15  5.42e-01 
+   200| 5.50e-03  1.71e-03  3.94e-04  1.45e+01  1.45e+01  7.16e-15  9.50e-01 
+   300| 7.74e-04  5.30e-04  1.82e-05  1.45e+01  1.45e+01  7.20e-15  1.36e+00 
 ----------------------------------------------------------------------------
 Status: Solved
-Timing: Solve time: 1.14e+00s
-	Lin-sys: avg # CG iterations: 7.88, avg solve time: 1.07e-03s
-	Cones: avg projection time: 2.79e-03s
+Timing: Solve time: 1.36e+00s
+	Lin-sys: avg # CG iterations: 6.77, avg solve time: 1.01e-03s
+	Cones: avg projection time: 3.31e-03s
 ----------------------------------------------------------------------------
 Error metrics:
-dist(s, K) = 2.0021e-09, dist(y, K*) = 1.7703e-09, s'y/|s||y| = 7.1391e-12
-|Ax + s - b|_2 / (1 + |b|_2) = 4.7751e-04
-|A'y + c|_2 / (1 + |c|_2) = 9.2792e-04
-|c'x + b'y| / (1 + |c'x| + |b'y|) = 1.4337e-05
+dist(s, K) = 1.8905e-09, dist(y, K*) = 1.7984e-09, s'y/|s||y| = -4.5121e-12
+|Ax + s - b|_2 / (1 + |b|_2) = 7.7399e-04
+|A'y + c|_2 / (1 + |c|_2) = 5.3005e-04
+|c'x + b'y| / (1 + |c'x| + |b'y|) = 1.8171e-05
 ----------------------------------------------------------------------------
-c'x = 13.8783, -b'y = 13.8779
+c'x = 14.5379, -b'y = 14.5374
 ============================================================================
-
+Obj value: 14.5379
+[CVX - SCS] Compute solution : 1.6535 s.
 ```
 
 The filter weight (based on a random vector and single demand) can be visualized as
 
-![batt_linear_filter_w1](fig/linear_filter_w1.png) 
+![batt_linear_filter_w1](fig/linear_filter_w1_MOSEK.png) 
+![batt_linear_filter_w1](fig/linear_filter_w1_SCS.png) 
 
  
 
