@@ -26,7 +26,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=40)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=20)
 
 
 def _create_price(steps_perHr=2):
@@ -476,7 +476,7 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
 
 # TODO =================================
 
-def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False, n_job=10):
 
     batch_size = D.shape[0]
 
@@ -487,11 +487,22 @@ def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, pl
     qs = [optMini_util.to_np(q) for i in range(batch_size)]
     As = [optMini_util.to_np(A) for i in range(batch_size)]
     bs = [optMini_util.to_np(b) for i in range(batch_size)]
-
-    optMini_cvx.cvx_transform_QPSDP_solve_batch()
-
-
-    raise NotImplementedError
+    price = optMini_util.to_np(price.squeeze(1))
+    D = optMini_util.to_np(D)
+    delta = 0.01
+    xi = 0.03
+    eps_batch = np.random.random(size=(batch_size, T))
+    res = optMini_cvx.cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps_batch, xi, delta, T, price,
+                                    cp_sol = cp_solver, n_jobs = n_job, verbose=debug)
+    # prob.value, xhat, GAMMA_hat, lam, mu, slacks
+    objs_batch = _convert_to_np_scalars(res, 0)
+    xs_batch = _convert_to_np_arr(res, 1)
+    GAMMAs_batch = _convert_to_np_arr(res, 2)
+    lams_batch = _convert_to_np_arr(res, 3)
+    mus_batch = _convert_to_np_arr(res, 4)
+    slacks_batch = _convert_to_np_arr(res, 5)
+    print(GAMMAs_batch)
+    # raise NotImplementedError
 
 # TODO ========= end batched method =====
 
@@ -518,34 +529,41 @@ def run_battery(dataloader, params=None):
             # construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.MOSEK, plotfig=True, debug=True)
             # end = time.perf_counter()
             # print("[CVX - %s] Compute solution : %.4f s." % (cp.MOSEK, end - start))
+            # start = time.perf_counter()
+            # construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=False, debug=True)
+            # end = time.perf_counter()
+            # print("[CVX - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
+            #
+            # construct_QPSDP_battery_w_privD_conic(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, debug=True)
+            # print("[DIFFCP - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
+            #
+            # raise NotImplementedError("Mannul break!")
+
+            ### ========== comparison with battery control with non private demand  ============= ###
+            # start = time.perf_counter()
+            # x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, cp_solver=cp.GUROBI, debug=False)
+            # end = time.perf_counter()
+            # print("[CVX - %s] Compute solution : %.4f s." % (cp.GUROBI, end - start))
+            # start = time.perf_counter()
+            # x_sol_conic = construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
+            # end = time.perf_counter()
+            # print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
+            # # _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
+
+            ### ========== comparison with battery control with private demand  ============= ###
             start = time.perf_counter()
-            construct_QPSDP_battery_w_privD_cvx(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, plotfig=False, debug=True)
+            construct_QPSDP_battery_w_privD_cvx_batch(param_set=params, D=D, p=price, cp_solver=cp.SCS, debug=True, n_job=10)
             end = time.perf_counter()
             print("[CVX - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
 
-            construct_QPSDP_battery_w_privD_conic(param_set=params, d=D[0], p=price, cp_solver=cp.SCS, debug=True)
-            print("[DIFFCP - %s] Compute solution : %.4f s." % (cp.SCS, end - start))
-
-            raise NotImplementedError("Mannul break!")
-
-            ### ========== comparison with battery control with non private demand  ============= ###
-            start = time.perf_counter()
-            x_sol_cvx = construct_QP_battery_w_D_cvx_batch(param_set=params, D=D, p=price, cp_solver=cp.GUROBI, debug=False)
-            end = time.perf_counter()
-            print("[CVX - %s] Compute solution : %.4f s." % (cp.GUROBI, end - start))
-            start = time.perf_counter()
-            x_sol_conic = construct_QP_battery_w_D_conic_batch(param_set=params, D=D, p=price, debug=False)
-            end = time.perf_counter()
-            print("[DIFFCP] Compute solution and set up derivative: %.4f s." % (end - start))
-            # _debug_compare_cvx_and_conic_solution(x_sol_cvx, x_sol_conic, batch=k)
             if (k + 1) > 0:
                 raise NotImplementedError("---- Iter {:d} break manually! ----".format(k))
 
 
 
 
-# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT, plotfig=False)
 # check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=False)
 # check_basic_csc(param_set=params, plotfig=False, debug=True)

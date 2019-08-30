@@ -201,7 +201,7 @@ s.t. Ax = b;
 """
 
 # this function injest in a single sequence demamnd
-def forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=0.01, T=48, p=None,
+def forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta, T, p=None,
                                 sol_opt=cp.CVXOPT, verbose=False):
     """
     This function processes the SDP
@@ -241,16 +241,16 @@ def forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=0.01, T=
 
     obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + q.T * x_ + p.T * cp.pos(term1) + cp.pos(cp.norm(GAMMA, "nuc") - xi ) )
     eqCon = A * x_ == b if neq > 0 else None
-    prob_ineqCon = [cp.norm(GAMMA[:, i], 2) <= (d[i, 0] / abs(ut.function_normal_cdf_inv(delta))) for i in range(T)] # ut.function_normal_cdf_inv(delta)
+    soc_ineqCon = [cp.norm(GAMMA[:, i], 2) <= (d[i, 0] / abs(ut.function_normal_cdf_inv(delta))) for i in range(T)] # ut.function_normal_cdf_inv(delta)
 
-    eqCon_sdp = None  # convert the SDP constraint in the objective, # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
+    # eqCon_sdp = None  # convert the SDP constraint in the objective, # eqCon_sdp = cp.norm(GAMMA, "nuc") == xi
     if nineq > 0:
         slacks = cp.Variable(nineq)  # define slack variables
         ineqCon = G * x_ + slacks == h
         slacksCon = slacks >= 0
     else:
         ineqCon = slacks = slacksCon = None
-    cons_collected = [eqCon, eqCon_sdp, ineqCon] + prob_ineqCon + [slacksCon]
+    cons_collected = [eqCon, ineqCon] + soc_ineqCon + [slacksCon]
 
     cons = [constraint for constraint in cons_collected if constraint is not None]
     prob = cp.Problem(obj, cons)
@@ -280,14 +280,15 @@ def forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=0.01, T=
     xhat = np.array(x_.value).ravel()
     GAMMA_hat = np.array(GAMMA.value)
     lam = np.array(eqCon.dual_value).ravel() if eqCon is not None else None
-    lam_sdp = np.array(eqCon_sdp.dual_value).ravel() if eqCon_sdp is not None else None
+    # lam_socp = np.array(soc_ineqCon.dual_value).ravel() if soc_ineqCon is not None else None
     if ineqCon is not None:
         mu = np.array(ineqCon.dual_value).ravel()
         slacks = np.array(slacks.value).ravel()
     else:
         mu = slacks = None
 
-    return prob.value, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks
+    # return prob.value, xhat, GAMMA_hat, lam, lam_socp, mu, slacks
+    return prob.value, xhat, GAMMA_hat, lam, mu, slacks
 
 
 # the function contains random vector '\eps', '\xi', 'd' and '\delta'
@@ -342,11 +343,11 @@ def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=
 
 # TODO ######## start to work on the the ##########
 
-def forward_cvx_single_d_wrapper(Q, q, G, h, A, b, d, epsilon, xi, delta, cp_solver=cp.SCS, verbose=False):
-    return forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta,
+def forward_cvx_single_d_filter_wrapper(Q, q, G, h, A, b, d, epsilon, xi, delta, T, p, cp_solver, verbose):
+    return forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta, T, p=p,
                                        sol_opt=cp_solver, verbose=verbose)
 
-def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta,
+def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta, T, p=None,
                                     cp_sol = cp.SCS, n_jobs = 1, verbose=False):
     """
 
@@ -374,6 +375,6 @@ def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta,
     pool = ThreadPool(processes=n_jobs)
     args = []
     for i in range(batch_size):
-        args += [(Qs[i], qs[i], Gs[i], hs[i], As[i], bs[i], D[i], eps, xi, delta, cp_sol, verbose)]
+        args += [(Qs[i], qs[i], Gs[i], hs[i], As[i], bs[i], D[i], eps[i], xi, delta, T, p, cp_sol, verbose)]
 
-    return pool.starmap(forward_single_np_cvx_wrapper, args)
+    return pool.starmap(forward_cvx_single_d_filter_wrapper, args)
