@@ -16,7 +16,7 @@ import OptMiniModule.diffcp.cones as cone_lib
 
 import numpy as np
 
-from OptMiniModule.nn_models import OptPrivModel
+import OptMiniModule.nn_models import models
 
 
 desired_width = 300
@@ -67,11 +67,12 @@ def run_battery(dataloader, params=None):
     torch.manual_seed(2)
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
-    controller = OptPrivModel(Q, q, G, h, A, b, T=T)
+    # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
+    g = models.Generator(z_dim=_default_horizon_, y_priv_dim=2, device=None)
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             print(D)
-            controller(D)
+            # controller(D)
 
             if k > 0:
                 raise NotImplementedError("manual break!")
