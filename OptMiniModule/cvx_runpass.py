@@ -192,6 +192,8 @@ def conic_transform_solve_batch(Qs, qs, Gs, hs, As, bs, cp_sol=cp.SCS, n_jobs=4)
 
 
 """
+Private demand 
+
 1/2 x^T Q x + q^T x + p^T * pos(d+GAMMA \eps) 
 s.t. Ax = b; 
      Gx <= h;
@@ -199,7 +201,8 @@ s.t. Ax = b;
 """
 
 # this function injest in a single sequence demamnd
-def forward_single_d_cvx_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
+def forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=0.01, T=48, p=None,
+                                sol_opt=cp.CVXOPT, verbose=False):
     """
     This function processes the SDP
     :param Q:
@@ -288,7 +291,7 @@ def forward_single_d_cvx_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01, T=
 
 
 # the function contains random vector '\eps', '\xi', 'd' and '\delta'
-def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=0.01,
+def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=0.01,
                                         T=48, p=None, sol_opt=cp.CVXOPT, verbose=False):
     nz, neq, nineq = q.shape[0], A.shape[0] if A is not None else 0, G.shape[0]
 
@@ -336,3 +339,41 @@ def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, xi, d, epsilon, delta=
     return x, y, s, derivative, adjoint_derivative, A_, b_, c_
 
 
+
+# TODO ######## start to work on the the ##########
+
+def forward_cvx_single_d_wrapper(Q, q, G, h, A, b, d, epsilon, xi, delta, cp_solver=cp.SCS, verbose=False):
+    return forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta,
+                                       sol_opt=cp_solver, verbose=verbose)
+
+def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta,
+                                    cp_sol = cp.SCS, n_jobs = 1, verbose=False):
+    """
+
+    :param Qs:
+    :param qs:
+    :param Gs:
+    :param hs:
+    :param As:
+    :param bs:
+    :param D:
+    :param eps:
+    :param xi:
+    :param delta:
+    :param cp_sol:
+    :param n_jobs:
+    :param verbose:
+    :return:
+    """
+
+    # prob.value, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks
+
+    if n_jobs == -1:
+        n_jobs = mp.cpu_count()
+    batch_size = len(As)
+    pool = ThreadPool(processes=n_jobs)
+    args = []
+    for i in range(batch_size):
+        args += [(Qs[i], qs[i], Gs[i], hs[i], As[i], bs[i], D[i], eps, xi, delta, cp_sol, verbose)]
+
+    return pool.starmap(forward_single_np_cvx_wrapper, args)

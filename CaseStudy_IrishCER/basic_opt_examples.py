@@ -109,12 +109,6 @@ def check_basic(param_set=None, p=None, plotfig=False, debug=False, cp_solver=cp
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
 
-    # Q = optMini_util.to_np(Q)
-    # q = optMini_util.to_np(q)
-    # G = optMini_util.to_np(G)
-    # h = optMini_util.to_np(h)
-    # A = optMini_util.to_np(A)
-    # b = optMini_util.to_np(b)
     [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
     price = optMini_util.to_np(price.squeeze(1))
 
@@ -158,13 +152,6 @@ def construct_QP_battery_w_D_cvx(param_set=None, d=None, p=None, plotfig=False, 
 
     h = torch.cat([h, d.view(T, 1)], dim=0)
 
-    # Q = optMini_util.to_np(Q)
-    # q = optMini_util.to_np(q)
-    # G = optMini_util.to_np(G)
-    # h = optMini_util.to_np(h)
-    # A = optMini_util.to_np(A)
-    # b = optMini_util.to_np(b)
-    #
     [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
 
     obj, x_sol, lam, mu, slacks = optMini_cvx.forward_single_np(Q, q, G, h, A, b, sol_opt=cp_solver, verbose=True)  # gurobi
@@ -210,7 +197,8 @@ def construct_QPSDP_battery_w_privD_cvx(param_set=None, d=None, p=None, plotfig=
     xi = 0.03
 
     obj, xhat, GAMMA_hat, lam, lam_sdp, mu, slacks = optMini_cvx.forward_single_d_cvx_Filter(Q, q, G, h, A, b, xi, d[:T], epsilon,
-                                                                                              T=T, p=price, sol_opt=cp_solver, verbose=debug)
+                                                                                              T=T, p=price, sol_opt=cp_solver,
+                                                                                             verbose=debug)
 
 
     if debug:
@@ -260,46 +248,12 @@ def construct_QPSDP_battery_w_privD_conic(param_set=None, d=None, p=None, plotfi
         print("demand: ", d[:T])
         print("GAMMA * eps:", x_sol[t_: (t_+T*T)].reshape(T, T).transpose().dot(epsilon.transpose()))
 
-        # print(np.where(y == -4.9808e-05))
-        # print(y.shape)
 
-
-
-# TODO =================================
-
-def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
-
-    batch_size = D.shape[0]
-
-    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
-    Gs = [optMini_util.to_np(G) for i in range(batch_size)]
-    hs = [optMini_util.to_np(torch.cat([h, d.view(T, 1)], dim=0)) for d in D]  # demand d is from data input
-    Qs = [optMini_util.to_np(Q) for i in range(batch_size)]
-    qs = [optMini_util.to_np(q) for i in range(batch_size)]
-    As = [optMini_util.to_np(A) for i in range(batch_size)]
-    bs = [optMini_util.to_np(b) for i in range(batch_size)]
-
-
-
-    raise NotImplementedError
-
-
-
-
-
-# TODO ==== end here for batched Demand ====
-
+# TODO ==== end here for single Demand ====
 
 def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
 
     Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
-
-    # Q = optMini_util.to_np(Q)
-    # q = optMini_util.to_np(q)
-    # G = optMini_util.to_np(G)
-    # h = optMini_util.to_np(h)
-    # A = optMini_util.to_np(A)
-    # b = optMini_util.to_np(b)
 
     [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
     ################################
@@ -331,9 +285,7 @@ def check_basic_csc(param_set=None, p=None, plotfig=False, debug=False):
         print("Q:")
         print(Q)
         print("L = LU(Q):")
-        print(np.linalg.cholesky(Q))
-        print(np.linalg.cholesky(Q)*2)
-        print(np.linalg.cholesky(Q)*np.sqrt(2))
+        print(np.linalg.cholesky(Q), np.linalg.cholesky(Q)*2, np.linalg.cholesky(Q)*np.sqrt(2))
         print("===" * 20)
         print("b:")
         print(b)
@@ -387,13 +339,6 @@ def construct_QP_battery_w_D_conic(param_set=None, d=None, p=None, plotfig=False
     G_append = torch.cat([-torch.eye(T), torch.eye(T), torch.zeros((T, T))], dim=1)
     G = torch.cat([G, G_append], dim=0)
     h = torch.cat([h, d.view(T, 1)], dim=0) # demand d is from data input
-
-    # Q = optMini_util.to_np(Q)
-    # q = optMini_util.to_np(q)
-    # G = optMini_util.to_np(G)
-    # h = optMini_util.to_np(h)
-    # A = optMini_util.to_np(A)
-    # b = optMini_util.to_np(b)
 
     [Q, q, G, h, A, b] = list(map(optMini_util.to_np, [Q, q, G, h, A, b]))
 
@@ -528,6 +473,31 @@ def construct_QP_battery_w_D_conic_batch(param_set=None, D=None, p=None, debug=F
         # print(qs)
     return xs_batch
 
+
+# TODO =================================
+
+def construct_QPSDP_battery_w_privD_cvx_batch(param_set=None, D=None, p=None, plotfig=False, cp_solver=cp.CVXOPT, debug=False):
+
+    batch_size = D.shape[0]
+
+    Q, q, G, h, A, b, T, price = _form_QP_params(param_set, p)
+    Gs = [optMini_util.to_np(G) for i in range(batch_size)]
+    hs = [optMini_util.to_np(h) for i in range(batch_size)]  # demand d is from data input
+    Qs = [optMini_util.to_np(Q) for i in range(batch_size)]
+    qs = [optMini_util.to_np(q) for i in range(batch_size)]
+    As = [optMini_util.to_np(A) for i in range(batch_size)]
+    bs = [optMini_util.to_np(b) for i in range(batch_size)]
+
+    optMini_cvx.cvx_transform_QPSDP_solve_batch()
+
+
+    raise NotImplementedError
+
+# TODO ========= end batched method =====
+
+
+
+#########################
 
 def run_battery(dataloader, params=None):
     ## multiple iterations
