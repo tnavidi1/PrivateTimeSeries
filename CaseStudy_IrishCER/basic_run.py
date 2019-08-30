@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 import processData
 import nets
+import numpy as np
 import sys, os
 sys.path.append("..")
 
@@ -13,10 +14,7 @@ import matplotlib.pyplot as plt
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
 import OptMiniModule.diffcp.cones as cone_lib
-
-import numpy as np
-
-import OptMiniModule.nn_models import models
+import basic_util as bUtil
 
 
 desired_width = 300
@@ -68,13 +66,16 @@ def run_battery(dataloader, params=None):
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
-    g = models.Generator(z_dim=_default_horizon_, y_priv_dim=2, device=None)
+    g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, device=None)
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
-            print(D)
-            # controller(D)
 
-            if k > 0:
+            # controller(D)
+            y_labels = bUtil.convert_binary_label(Y, 1500)
+            print(bUtil.)
+            print(D, y_labels)
+
+            if (k + 1) > 0:
                 raise NotImplementedError("manual break!")
 
 

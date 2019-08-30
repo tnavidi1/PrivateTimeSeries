@@ -320,7 +320,6 @@ def PCA_select(pid_ts, k=10, daily_resolution=48):
     num_sampled_days = int(np.floor(len(pid_ts_) / daily_resolution))
     n_length_ = int(daily_resolution * num_sampled_days)
     X_ = pid_ts_.values[0:n_length_].reshape((num_sampled_days, daily_resolution))
-
     from sklearn.decomposition import PCA
     pca_ = PCA(n_components=k)
     pca_.fit(X_)
