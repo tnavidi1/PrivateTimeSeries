@@ -341,7 +341,7 @@ def forward_single_d_conic_solve_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta=
 
 
 
-# TODO ######## start to work on the the ##########
+# TODO ######## start to work on the batched manner ##########
 
 def forward_cvx_single_d_filter_wrapper(Q, q, G, h, A, b, d, epsilon, xi, delta, T, p, cp_solver, verbose):
     return forward_single_d_cvx_Filter(Q, q, G, h, A, b, d, epsilon, xi, delta, T, p=p,
@@ -378,3 +378,70 @@ def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta, T
         args += [(Qs[i], qs[i], Gs[i], hs[i], As[i], bs[i], D[i], eps[i], xi, delta, T, p, cp_sol, verbose)]
 
     return pool.starmap(forward_cvx_single_d_filter_wrapper, args)
+
+
+
+# TODO ######## work on the batched manner with torch capatibility ##########
+
+# start with simple case 1:
+"""
+\min_{x} p^T(x + \GAMMA * [\eps, y]^T)_+ 
+ 
+"""
+
+def _convex_formulation_w_GAMMA_d_cvx(p, GAMMA, d, epsilon, y_onehot, T, sol_opt=cp.SCS, verbose=True):
+    """
+
+    :param p:
+    :param GAMMA:
+    :param d:
+    :param epsilon:
+    :param y_onehot:
+    :return:
+    """
+
+    # print("price {}, GAMMA {}, demand {}, eps: {}, y_onehot {}".format(p, GAMMA, d, epsilon, y_onehot))
+
+    cat_vec = None
+    if epsilon.shape == (T, ) and y_onehot.shape == (2, ):
+        cat_vec = np.concatenate([epsilon, y_onehot], axis=0)
+        cat_vec = np.expand_dims(cat_vec, 1)
+        # epsilon = np.expand_dims(epsilon, 1)
+
+    if d.shape == (T, ):
+        d = np.expand_dims(d, 1)
+
+    x_ = cp.Variable(3 * T)
+
+    Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T) ], axis=1)
+    obj = cp.Minimize(p.T * cp.pos(Diff_coef_ * x_[0:(2*T), 0] + d + GAMMA.dot(cat_vec)))
+    ineqCon = x_ >= 0
+    cons = [ineqCon]
+    prob = cp.Problem(obj, cons)
+    prob.solve(solver=sol_opt, verbose=verbose)
+    xhat = np.array(x_.value).ravel()
+
+    return xhat
+
+
+
+def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, T, sol_opt=cp.SCS, verbose=True):
+
+    cat_vec = None
+    if epsilon.shape == (T,) and y_onehot.shape == (2,):
+        cat_vec = np.concatenate([epsilon, y_onehot], axis=0)
+        cat_vec = np.expand_dims(cat_vec, 1)
+        # epsilon = np.expand_dims(epsilon, 1)
+
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+
+    x_ = cp.Variable(3 * T)
+
+    Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T)], axis=1)
+    obj = cp.Minimize(p.T * cp.pos(Diff_coef_ * x_[0:(2 * T), 0] + d + GAMMA.dot(cat_vec)))
+    ineqCon = x_ >= 0
+    cons = [ineqCon]
+    prob = cp.Problem(obj, cons)
+
+    scs_data_from_cvxpy_problem(prob, cp_SCS=sol_opt)

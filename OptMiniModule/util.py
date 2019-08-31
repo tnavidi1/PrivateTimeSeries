@@ -91,13 +91,13 @@ def construct_b_batt_raw(T=24, batt_init=1):
 
 
 
-def construct_Q_batt_raw(T=24, beta1=0.5, beta2=0.5, gamma=0.1):
-    vec = torch.cat([torch.ones(T)*beta1, torch.ones(T)*beta2, torch.ones(T)*gamma], dim=0)
+def construct_Q_batt_raw(T=24, beta1=0.5, beta2=0.5, beta3=0.1):
+    vec = torch.cat([torch.ones(T)*beta1, torch.ones(T)*beta2, torch.ones(T)*beta3], dim=0)
     Q=torch.diag(vec)
     return Q
 
 
-def construct_q_batt_raw(T=24, price=None, batt_B=1, gamma=0.5, alpha=0.2):
+def construct_q_batt_raw(T=24, price=None, batt_B=1, beta3=0.5, alpha=0.2):
 
     if price is None:
         torch.manual_seed(2)
@@ -109,7 +109,7 @@ def construct_q_batt_raw(T=24, price=None, batt_B=1, gamma=0.5, alpha=0.2):
     if price.shape == (1, T):
         price = price.reshape(T, 1)
 
-    q = torch.cat([price, -price, -2*gamma*alpha*batt_B*torch.ones((T,1))], dim=0)
+    q = torch.cat([price, -price, -2*beta3*alpha*batt_B*torch.ones((T,1))], dim=0)
     return q, price
 
 

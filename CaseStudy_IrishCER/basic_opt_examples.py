@@ -78,7 +78,7 @@ def _form_QP_params(param_set, p=None):
     eta_eff = param_set['eta_eff']
     beta1 = param_set['beta1']
     beta2 = param_set['beta2']
-    gamma = param_set['gamma']
+    beta3 = param_set['beta3']
     alpha = param_set['alpha']
     B = param_set['B']
     T = param_set['T']
@@ -87,8 +87,8 @@ def _form_QP_params(param_set, p=None):
     h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
     A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
     b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
-    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, gamma=gamma, alpha=alpha)
+    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, beta3=beta3)
+    q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, beta3=beta3, alpha=alpha)
 
     return [Q, q, G, h, A, b, T, price]
 

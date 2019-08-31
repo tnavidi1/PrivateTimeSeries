@@ -43,7 +43,7 @@ def _form_QP_params(param_set, p=None):
     eta_eff = param_set['eta_eff']
     beta1 = param_set['beta1']
     beta2 = param_set['beta2']
-    gamma = param_set['gamma']
+    beta3 = param_set['beta3']
     alpha = param_set['alpha']
     B = param_set['B']
     T = param_set['T']
@@ -52,10 +52,14 @@ def _form_QP_params(param_set, p=None):
     h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
     A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
     b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
-    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, gamma=gamma)
-    q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, gamma=gamma, alpha=alpha)
+    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, beta3=beta3)
+    q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, beta3=beta3, alpha=alpha)
 
     return [Q, q, G, h, A, b, T, price]
+
+def _extract_filter_weight(x):
+    return optMini_util.to_np(x.data)
+
 
 
 def run_battery(dataloader, params=None):
@@ -67,18 +71,35 @@ def run_battery(dataloader, params=None):
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, device=None)
+    print(g)
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
-
             # controller(D)
-            y_labels = bUtil.convert_binary_label(Y, 1500)
-            print(bUtil.)
-            print(D, y_labels)
+            y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
+            y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
+            # print(D, y_labels, y_onehot)
+            D_tilde, z_noise = g(D, y_onehot)
+            print(g.filter.fc.weight.shape) # 48 * 50
+            d = D_tilde[0]
+            eps = z_noise[0]
+            y_onehot_ = y_onehot[0]
+            # GAMMA = _extract_filter_weight(g.filter.fc.weight)
+            GAMMA = g.filter.fc.weight
+            # raise NotImplementedError("=========")
+            [price, GAMMA, d, eps, y_onehot_] = list(map(_extract_filter_weight, [price, GAMMA, d, eps, y_onehot_]))
+            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d(price, GAMMA, d, eps, y_onehot_, T, sol_opt=cp.GUROBI, verbose=True)
 
+            print(x_ctrl[:T] - x_ctrl[T:(2*T)])
+            plt.figure(figsize=(6, 4))
+            plt.bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
+            plt.bar(np.arange(1, T+1), price.flatten())
+            plt.show()
+
+            # print(x_ctrl)
             if (k + 1) > 0:
                 raise NotImplementedError("manual break!")
 
 
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
 run_battery(dataloader_dict['train'], params=params)
 

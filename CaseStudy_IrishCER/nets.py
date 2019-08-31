@@ -5,6 +5,9 @@ from torch.nn.parameter import Parameter
 # try:
 #     import util as ut
 # except ModuleNotFoundError:
+import sys
+sys.path.append("..")
+
 try:
     import OptMiniModule.util as ut
 except:
@@ -76,7 +79,7 @@ class Generator(nn.Module):
         self.device = device
 
         # create a linear filter # @since 2019/08/29 modify zero bias
-        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=None)  # setting noise dim is same as latent dim
+        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=False)  # setting noise dim is same as latent dim
 
         # Set prior as fixed parameter attached to module
         self.z_prior_m = Parameter(torch.zeros(1), requires_grad=False)
@@ -84,21 +87,24 @@ class Generator(nn.Module):
         self.z_prior = (self.z_prior_m, self.z_prior_v)
 
     def forward(self, x, y=None):
-        batch_size = x.size()[0] # batch size is the first dimension
+        batch_size = x.shape[0] #x.size()[0] # batch size is the first dimension
 
         z_noise = self.sample_z(batch=batch_size)
         z_noise = z_noise / z_noise.norm(2, dim=1).unsqueeze(1).repeat(1, self.z_dim)
 
         x_proc_noise = self.filter(z_noise, y)
         x_noise = x + x_proc_noise
-        return x_noise
+        return x_noise, z_noise
 
     def sample_z(self, batch):
         return ut.sample_gaussian(self.z_prior[0].expand(batch, self.z_dim),
                                 self.z_prior[1].expand(batch, self.z_dim))
 
     def display_filter_params(self):
-        print(self.filter.parameters())
+        params = list(self.filter.parameters())
+        print(params[0].size())
+        print(params[0])
+
 
 
 
