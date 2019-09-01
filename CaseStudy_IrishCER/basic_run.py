@@ -94,23 +94,27 @@ def run_battery(dataloader, params=None):
             [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b] = list(map(_extract_filter_weight,
                                                                         [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b]))
             # ==== cvx ====
-            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_cvx(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
-                                                                   sol_opt=cp.GUROBI, verbose=True)
-
-            # print(x_ctrl[:T] - x_ctrl[T:(2 * T)])
-            fig, ax =plt.subplots(2, 1, figsize=(6, 4))
-            ax[0].bar(np.arange(1, T + 1), x_ctrl[:T] - x_ctrl[T:(2 * T)])
-            ax[0].bar(np.arange(1, T + 1), price.flatten())
+            # x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_cvx(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+            #                                                        sol_opt=cp.GUROBI, verbose=True)
+            #
+            # # print(x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            # fig, ax =plt.subplots(2, 1, figsize=(6, 4))
+            # ax[0].bar(np.arange(1, T + 1), x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            # ax[0].bar(np.arange(1, T + 1), price.flatten())
             # plt.show()
             # ==== conic ====
-            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_conic(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+            x_ctrl, db_ = optMini_cvx._convex_formulation_w_GAMMA_d_conic(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
                                                                      sol_opt=cp.GUROBI, verbose=True)
+            print(np.expand_dims(db_[T:(2*T)], 1), eps)
 
+            print(np.tile(np.expand_dims(db_[T:(2*T)], 1), T))
+            grad_gamma = ((1/T) * (np.tile(np.expand_dims(db_[T:(2*T)], 1), T)) / eps )
+            print(grad_gamma.shape, grad_gamma)
             # print(x_ctrl[:T] - x_ctrl[T:(2*T)])
             # plt.figure(figsize=(6, 4))
-            ax[1].bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
-            ax[1].bar(np.arange(1, T+1), price.flatten())
-            plt.show()
+            # ax[1].bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
+            # ax[1].bar(np.arange(1, T+1), price.flatten())
+            # plt.show()
 
 
 

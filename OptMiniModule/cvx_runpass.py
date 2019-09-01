@@ -466,4 +466,7 @@ def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, Q, G, h,
         A_, b_, c_, cone_dims, eps=1e-5)
 
     x_hat = x[:3*T]
-    return x_hat
+
+    dA, db, dc =adjoint_derivative(c_, np.zeros(y.size), np.zeros(s.size))
+    print(dA.shape, db.shape, dc.shape)
+    return x_hat, db
