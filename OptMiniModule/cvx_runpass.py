@@ -389,7 +389,7 @@ def cvx_transform_QPSDP_solve_batch(Qs, qs, Gs, hs, As, bs, D, eps, xi, delta, T
  
 """
 
-def _convex_formulation_w_GAMMA_d_cvx(p, GAMMA, d, epsilon, y_onehot, T, sol_opt=cp.SCS, verbose=True):
+def _convex_formulation_w_GAMMA_d_cvx(p, GAMMA, d, epsilon, y_onehot, Q, G, h, A, b, T, sol_opt=cp.SCS, verbose=True):
     """
 
     :param p:
@@ -411,12 +411,16 @@ def _convex_formulation_w_GAMMA_d_cvx(p, GAMMA, d, epsilon, y_onehot, T, sol_opt
     if d.shape == (T, ):
         d = np.expand_dims(d, 1)
 
-    x_ = cp.Variable(3 * T)
+    x_ = cp.Variable(3*T)
+
+    print(Q.shape)
+    print(x_.size)
 
     Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T) ], axis=1)
-    obj = cp.Minimize(p.T * cp.pos(Diff_coef_ * x_[0:(2*T), 0] + d + GAMMA.dot(cat_vec)))
-    ineqCon = x_ >= 0
-    cons = [ineqCon]
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + p.T * cp.pos(Diff_coef_ * x_[0:(2*T)] + d + GAMMA.dot(cat_vec)))
+    ineqCon = G * x_ <= h
+    eqCon = A * x_ == b
+    cons = [ineqCon, eqCon]
     prob = cp.Problem(obj, cons)
     prob.solve(solver=sol_opt, verbose=verbose)
     xhat = np.array(x_.value).ravel()
@@ -425,7 +429,7 @@ def _convex_formulation_w_GAMMA_d_cvx(p, GAMMA, d, epsilon, y_onehot, T, sol_opt
 
 
 
-def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, T, sol_opt=cp.SCS, verbose=True):
+def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, Q, G, h, A, b, T, sol_opt=cp.SCS, verbose=True):
 
     cat_vec = None
     if epsilon.shape == (T,) and y_onehot.shape == (2,):
@@ -439,9 +443,27 @@ def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, T, sol_o
     x_ = cp.Variable(3 * T)
 
     Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T)], axis=1)
-    obj = cp.Minimize(p.T * cp.pos(Diff_coef_ * x_[0:(2 * T), 0] + d + GAMMA.dot(cat_vec)))
-    ineqCon = x_ >= 0
-    cons = [ineqCon]
+
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + p.T * cp.pos(Diff_coef_ * x_[0:(2 * T), 0] + d + GAMMA.dot(cat_vec)))
+    ineqCon = G * x_ <= h
+    eqCon = A * x_ == b
+    cons = [ineqCon, eqCon]
     prob = cp.Problem(obj, cons)
 
-    scs_data_from_cvxpy_problem(prob, cp_SCS=sol_opt)
+    A_, b_, c_, cone_dims = scs_data_from_cvxpy_problem(prob, cp_SCS=sol_opt)
+
+    # print("A:", A_.shape, A_)
+    # print("b:", b_.shape, np.expand_dims(b_, 1))
+    # tau = 96
+    # print("b[:{:d}] == {}".format(tau, b_[:tau]))
+    # print("c:", c_.shape, np.expand_dims(c_, 1))
+    # print("==="*20)
+    # print("price:\n", p)
+    # print("=="*20)
+    # print("d_tilde:\n", d + GAMMA.dot(cat_vec))
+
+    x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
+        A_, b_, c_, cone_dims, eps=1e-5)
+
+    x_hat = x[:3*T]
+    return x_hat

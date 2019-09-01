@@ -62,6 +62,11 @@ def _extract_filter_weight(x):
 
 
 
+
+
+
+
+
 def run_battery(dataloader, params=None):
     ## multiple iterations
     # init price
@@ -86,14 +91,28 @@ def run_battery(dataloader, params=None):
             # GAMMA = _extract_filter_weight(g.filter.fc.weight)
             GAMMA = g.filter.fc.weight
             # raise NotImplementedError("=========")
-            [price, GAMMA, d, eps, y_onehot_] = list(map(_extract_filter_weight, [price, GAMMA, d, eps, y_onehot_]))
-            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d(price, GAMMA, d, eps, y_onehot_, T, sol_opt=cp.GUROBI, verbose=True)
+            [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b] = list(map(_extract_filter_weight,
+                                                                        [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b]))
+            # ==== cvx ====
+            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_cvx(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+                                                                   sol_opt=cp.GUROBI, verbose=True)
 
-            print(x_ctrl[:T] - x_ctrl[T:(2*T)])
-            plt.figure(figsize=(6, 4))
-            plt.bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
-            plt.bar(np.arange(1, T+1), price.flatten())
+            # print(x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            fig, ax =plt.subplots(2, 1, figsize=(6, 4))
+            ax[0].bar(np.arange(1, T + 1), x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            ax[0].bar(np.arange(1, T + 1), price.flatten())
+            # plt.show()
+            # ==== conic ====
+            x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_conic(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+                                                                     sol_opt=cp.GUROBI, verbose=True)
+
+            # print(x_ctrl[:T] - x_ctrl[T:(2*T)])
+            # plt.figure(figsize=(6, 4))
+            ax[1].bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
+            ax[1].bar(np.arange(1, T+1), price.flatten())
             plt.show()
+
+
 
             # print(x_ctrl)
             if (k + 1) > 0:
