@@ -470,3 +470,41 @@ def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, Q, G, h,
     dA, db, dc =adjoint_derivative(c_, np.zeros(y.size), np.zeros(s.size))
     print(dA.shape, db.shape, dc.shape)
     return x_hat, db
+
+
+##############################
+# @since 2019/09/01
+def _single_d_cvx_(p, d, Q, G, h, A, b, T=24, sol_opt=cp.SCS, verbose=0):
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+
+    Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T)], axis=1)
+
+    x_ = cp.Variable(3 * T)
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + p.T * cp.pos(Diff_coef_ * x_[0:(2 * T), 0] + d))
+    ineqCon = G * x_ <= h
+    eqCon = A * x_ == b
+    cons = [ineqCon, eqCon]
+    prob = cp.Problem(obj, cons)
+    prob.solve(solver=sol_opt, verbose=verbose)
+    xhat = np.array(x_.value).ravel()
+    # return numpy
+    return prob.value, xhat
+
+
+def forward_single_d_cvx_wrapper(p, d, Q, G, h, A, b, T, sol_opt=cp.SCS, verbose=0):
+    return _single_d_cvx_(p, d, Q, G, h, A, b, T=T, sol_opt=sol_opt, verbose=verbose)
+
+
+def forward_D_batch(Qs, Gs, hs, As, bs, D, T, p=None, cp_sol = cp.SCS, n_jobs = 1, verbose=False):
+
+    if n_jobs == -1:
+        n_jobs = mp.cpu_count()
+    # batch_size = len(D)
+    batch_size = D.shape[0]
+    pool = ThreadPool(processes=n_jobs)
+    args = []
+    for i in range(batch_size):
+        args += [(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose)]
+
+    return pool.starmap(forward_single_d_cvx_wrapper, args)

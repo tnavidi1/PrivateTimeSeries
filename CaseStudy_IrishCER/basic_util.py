@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 import sys
 sys.path.append('..')
 
@@ -46,3 +46,24 @@ def _form_QP_params(param_set, p=None):
     q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, beta3=beta3, alpha=alpha)
 
     return [Q, q, G, h, A, b, T, price]
+
+
+def _convert_to_np_arr(X, j):
+    """
+    if X is 2d array
+    :param X:
+    :param j:
+    :return:
+    """
+    xs = np.array([x_[j].tolist() for x_ in X])
+    return xs
+
+def _convert_to_np_scalars(X, j):
+    """
+    if X is a 1d array
+    :param X:
+    :param j:
+    :return:
+    """
+    xs = np.array([x_[j] for x_ in X])
+    return xs

@@ -62,11 +62,6 @@ def _extract_filter_weight(x):
 
 
 
-
-
-
-
-
 def run_battery(dataloader, params=None):
     ## multiple iterations
     # init price
@@ -75,46 +70,56 @@ def run_battery(dataloader, params=None):
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
-    g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, device=None)
+    g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
+                       T=_default_horizon_, p=price,
+                       device=None)
     print(g)
+    # raise NotImplementedError
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # controller(D)
             y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
             y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
             # print(D, y_labels, y_onehot)
-            D_tilde, z_noise = g(D, y_onehot)
-            print(g.filter.fc.weight.shape) # 48 * 50
-            d = D_tilde[0]
-            eps = z_noise[0]
-            y_onehot_ = y_onehot[0]
-            # GAMMA = _extract_filter_weight(g.filter.fc.weight)
-            GAMMA = g.filter.fc.weight
-            # raise NotImplementedError("=========")
-            [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b] = list(map(_extract_filter_weight,
-                                                                        [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b]))
-            # ==== cvx ====
-            # x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_cvx(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
-            #                                                        sol_opt=cp.GUROBI, verbose=True)
-            #
-            # # print(x_ctrl[:T] - x_ctrl[T:(2 * T)])
-            # fig, ax =plt.subplots(2, 1, figsize=(6, 4))
-            # ax[0].bar(np.arange(1, T + 1), x_ctrl[:T] - x_ctrl[T:(2 * T)])
-            # ax[0].bar(np.arange(1, T + 1), price.flatten())
-            # plt.show()
-            # ==== conic ====
-            x_ctrl, db_ = optMini_cvx._convex_formulation_w_GAMMA_d_conic(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
-                                                                     sol_opt=cp.GUROBI, verbose=True)
-            print(np.expand_dims(db_[T:(2*T)], 1), eps)
+            # D_tilde, z_noise = g.(D, y_onehot)
 
-            print(np.tile(np.expand_dims(db_[T:(2*T)], 1), T))
-            grad_gamma = ((1/T) * (np.tile(np.expand_dims(db_[T:(2*T)], 1), T)) / eps )
-            print(grad_gamma.shape, grad_gamma)
-            # print(x_ctrl[:T] - x_ctrl[T:(2*T)])
-            # plt.figure(figsize=(6, 4))
-            # ax[1].bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
-            # ax[1].bar(np.arange(1, T+1), price.flatten())
-            # plt.show()
+            loss = g.util_loss(D, y_onehot)
+            print(loss)
+            print(loss.backward())
+
+            # print(g.filter.fc.weight.shape) # 48 * 50
+            # d = D_tilde[0]
+            # eps = z_noise[0]
+            # y_onehot_ = y_onehot[0]
+            # # GAMMA = _extract_filter_weight(g.filter.fc.weight)
+            #
+            # GAMMA = g.filter.fc.weight
+            #
+            # # raise NotImplementedError("=========")
+            # [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b] = list(map(_extract_filter_weight,
+            #                                                             [price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b]))
+            # # ==== cvx ====
+            # # x_ctrl = optMini_cvx._convex_formulation_w_GAMMA_d_cvx(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+            # #                                                        sol_opt=cp.GUROBI, verbose=True)
+            # #
+            # # # print(x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            # # fig, ax =plt.subplots(2, 1, figsize=(6, 4))
+            # # ax[0].bar(np.arange(1, T + 1), x_ctrl[:T] - x_ctrl[T:(2 * T)])
+            # # ax[0].bar(np.arange(1, T + 1), price.flatten())
+            # # plt.show()
+            # # ==== conic ====
+            # x_ctrl, db_ = optMini_cvx._convex_formulation_w_GAMMA_d_conic(price, GAMMA, d, eps, y_onehot_, Q, G, h, A, b, T,
+            #                                                          sol_opt=cp.GUROBI, verbose=True)
+            # print(np.expand_dims(db_[T:(2*T)], 1), eps)
+            #
+            # print(np.tile(np.expand_dims(db_[T:(2*T)], 1), T))
+            # grad_gamma = ((1/T) * (np.tile(np.expand_dims(db_[T:(2*T)], 1), T)) / eps )
+            # print(grad_gamma.shape, grad_gamma)
+            # # print(x_ctrl[:T] - x_ctrl[T:(2*T)])
+            # # plt.figure(figsize=(6, 4))
+            # # ax[1].bar(np.arange(1, T+1), x_ctrl[:T] - x_ctrl[T:(2*T)])
+            # # ax[1].bar(np.arange(1, T+1), price.flatten())
+            # # plt.show()
 
 
 

@@ -56,6 +56,7 @@ class QP_privD(Function):
         self.verbose = verbose
         self.solver_opt = solver_opt
         self.T = T
+        self._store_tensors_ = None
 
     # def forward(self, price_, GAMMA_, d, epsilon, y_onehot, Q, G, h, A, b, T):
     # @staticmethod
@@ -105,3 +106,6 @@ class QP_privD(Function):
         return dGAMMA
 
 
+# x = torch.randn(3, 3)
+# x = x.unsqueeze(0)
+# print(x.repeat(2, 1, 1))
