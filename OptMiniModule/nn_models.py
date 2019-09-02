@@ -39,6 +39,15 @@ class OptPrivModel(nn.Module):
 
         self.GAMMA = Parameter(torch.rand((T, T)))
 
+        """
+        or we can set a linear layer 
+        """
+        #########################
+        # alternative option
+        #########################
+        # self.fc = nn.Linear(T, T, bias=False)
+
+
         # Set prior as fixed parameter attached to Module
         # TODO - fix it when prior is non-Gaussian
         self.z_dim = self.horizon
@@ -83,6 +92,11 @@ class OptPrivModel(nn.Module):
         D_tilde = D + z_noise.matmul(self.GAMMA.t())
         D_tilde = F.relu(D_tilde)
         print(D_tilde.shape, D_tilde)
+        #################################
+        # or
+        D_tilde = D + self.fc(z_noise)
+
+
         # input.matmul(weight.t())
 
         raise NotImplementedError
@@ -92,6 +106,10 @@ class OptPrivModel(nn.Module):
     def sample_z(self, batch):
         return ut.sample_gaussian( self.z_prior[0].expand(batch, self.z_dim),
                                    self.z_prior[1].expand(batch, self.z_dim))
+
+
+    def util_loss(self):
+        raise NotImplementedError
 
 
 

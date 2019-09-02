@@ -562,8 +562,8 @@ def run_battery(dataloader, params=None):
 
 
 
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
-# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, gamma=0.5, alpha=0.2)
+params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
+# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=4, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
 # check_basic(param_set=params, cp_solver=cp.CVXOPT, plotfig=False)
 # check_basic(param_set=params, cp_solver=cp.GUROBI, plotfig=False)
 # check_basic_csc(param_set=params, plotfig=False, debug=True)

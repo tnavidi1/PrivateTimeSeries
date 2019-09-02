@@ -1,3 +1,7 @@
+"""
+This script runs classification of the sensitive attribute
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
