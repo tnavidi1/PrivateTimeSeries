@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 import processData
 import nets
@@ -10,6 +11,9 @@ import time
 import cvxpy as cp
 
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set('paper', style="whitegrid", font_scale=1.5, rc={"lines.linewidth": 2.5}, )
+
 
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
@@ -62,9 +66,10 @@ def _extract_filter_weight(x):
 
 
 
-def run_battery(dataloader, params=None):
+def run_battery(dataloader, params=None, lr=1e-3):
     ## multiple iterations
     # init price
+
     _default_horizon_ = 48
     torch.manual_seed(2)
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
@@ -74,28 +79,73 @@ def run_battery(dataloader, params=None):
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
                        T=_default_horizon_, p=price,
                        device=None)
+
     # print(g)
+    clf = nets.Classifier(z_dim=48, y_dim=2)
+    optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
+
     # raise NotImplementedError
-    optimizer = torch.optim.Adam(g.filter.parameters(), lr=2*1e-3)
+    optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=2*lr)
     # raise NotImplementedError(*g.filter.parameters())
     with tqdm(dataloader) as pbar:
+        correct_cnt = 0
+        tot_cnt = 0
+        label_cnt1 = 0
+        label_cnt2 = 0
+
         for k, (D, Y) in enumerate(pbar):
             # controller(D)
-            optimizer.zero_grad()
+            optimizer_g.zero_grad()
+            optimizer_clf.zero_grad()
             y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
             y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
             # print(D, y_labels, y_onehot)
-            # D_tilde, z_noise = g.(D, y_onehot)
-            loss = g.util_loss(D, y_onehot, xi=1)
-            # print(loss)
-            if k % 20 == 0:
-                print(g.filter.fc.weight.data.shape)
+            D_tilde, z_noise = g.forward(D, y_onehot)
+
+            y_out = clf(D_tilde)
+            loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
+                                       ignore_index=-100, reduction='mean')
+            loss_util = g.util_loss(D, y_onehot, xi=1)
+
+            if k % 50 == 0:
+            #     print(g.filter.fc.weight.data.shape)
                 print(g.filter.fc.weight.data)
-                print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
+                plt.figure(figsize=(6, 5))
+                sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
+                plt.tight_layout()
+                plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
+                plt.close()
+            #     print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
 
-            loss.backward()
-            optimizer.step()
+            loss_priv.backward(retain_graph=True)
+            optimizer_clf.step()
 
+            g_loss = loss_util - loss_priv
+            g_loss.backward()
+            optimizer_g.step()
+
+            #
+            _, y_max_idx = torch.max(y_out, dim=1)
+            correct = y_max_idx == y_labels
+            correct_cnt += correct.sum()
+            tot_cnt += D.shape[0]
+            label_cnt1 += (y_labels == 0).sum()
+            label_cnt2 += (y_labels == 1).sum()
+
+            trace_track = torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t()))
+            pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
+                             util_loss = '{:.3e}'.format(loss_util),
+                             priv_loss='{:.3e}'.format(loss_priv),
+                             # cor_cnts='{:d}'.format(correct_cnt),
+                             # tot_cnts='{:d}'.format(tot_cnt),
+                             acc='{:.2e}'.format(float(correct_cnt) / tot_cnt),
+                             prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
+                             prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
+                             tr='{:.3e}'.format(trace_track)
+                             )
+            pbar.update(10)
+
+            ###############################################################
             # print(g.filter.fc.weight.shape) # 48 * 50
             # d = D_tilde[0]
             # eps = z_noise[0]
@@ -133,8 +183,8 @@ def run_battery(dataloader, params=None):
 
 
             # print(x_ctrl)
-            if (k + 1) > 400:
-                raise NotImplementedError("manual break!")
+            # if (k + 1) > 400:
+            #     raise NotImplementedError("manual break!")
 
 
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)

@@ -256,7 +256,7 @@ class Generator(nn.Module):
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         obj_priv = self.evaluate_cost_obj(x_sol_priv, p=p)
 
-        hinge_loss_mean = F.softplus(obj_priv - obj_raw).sum(0)
+        hinge_loss_mean = F.relu(obj_priv - obj_raw).sum(0)
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
         # eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
         diagvals = torch.diag(self.filter.fc.weight.data[:, :48])
