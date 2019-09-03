@@ -27,3 +27,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+#
+fig/filter_visual/*.png
+
