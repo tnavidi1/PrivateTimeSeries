@@ -4,6 +4,7 @@ from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 import torch.nn.init as init
 import math
+import matplotlib.pyplot as plt
 # try:
 #     import util as ut
 # except ModuleNotFoundError:
@@ -44,6 +45,10 @@ class Classifier(nn.Module):
     def forward(self, x):
         o = self.net(x)
         return o
+
+
+
+
 
 
 
@@ -198,7 +203,26 @@ class Generator(nn.Module):
         z_noise = z_noise / z_noise.norm(2, dim=1).unsqueeze(1).repeat(1, self.z_dim)
 
         x_proc_noise = self.filter(z_noise, y)
-        x_priv = F.softplus(x + x_proc_noise)
+
+        # x_priv = F.softplus(x + x_proc_noise)
+        x_priv = torch.clamp(x + x_proc_noise, min=0)
+        ###########################
+        # print(x_proc_noise.shape)
+        # fig, ax = plt.subplots(1, 4)
+        # ax[0].plot(x_proc_noise[:3].detach().cpu().numpy().transpose())
+        # ax[0].plot((x + x_proc_noise)[:3].detach().cpu().numpy().transpose(), 'o-')
+        #
+        # ax[1].plot(x_priv[:3].detach().cpu().numpy().transpose(), '--')
+        # ax[1].plot(x[:3].detach().cpu().numpy().transpose())
+        #
+        # ax[2].plot(x_priv[:3].detach().cpu().numpy().transpose(), '--')
+        # ax[2].plot((x + x_proc_noise)[:3].detach().cpu().numpy().transpose())
+        #
+        # ax[3].plot(x_priv[:3].detach().cpu().numpy().transpose(), '--')
+        # ax[3].plot((F.softplus(x + x_proc_noise))[:3].detach().cpu().numpy().transpose(), alpha=0.2)
+        # ax[3].legend()
+        # plt.show()
+
         return x_priv, z_noise
 
     def sample_z(self, batch):
@@ -256,16 +280,16 @@ class Generator(nn.Module):
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         obj_priv = self.evaluate_cost_obj(x_sol_priv, p=p)
 
-        hinge_loss_mean = F.relu(obj_priv - obj_raw).sum(0)
+        hinge_loss_mean = F.relu_(obj_priv - obj_raw).sum(0)
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
         # eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
         diagvals = torch.diag(self.filter.fc.weight.data[:, :48])
         min_diag_vals =  torch.min(diagvals)
-        neg_diag_penalty = F.relu(-min_diag_vals)
-        tr_penalty = F.relu(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_1 = 0.1 if hinge_loss_mean > 0 else 0
-        hyper_2 = 100 if tr_penalty > 0 else 0
-        hyper_3 = 50 if neg_diag_penalty > 0 else 0
+        neg_diag_penalty = F.relu_(-min_diag_vals)
+        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        hyper_1 = 0.1 if hinge_loss_mean > 1e-3 else 0
+        hyper_2 = 100 if tr_penalty > 1e-3 else 0
+        hyper_3 = 50 if neg_diag_penalty > 1e-3 else 0
         return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty + hyper_3 * neg_diag_penalty
 
 

@@ -83,3 +83,7 @@ def _convert_to_np_scalars(X, j):
     """
     xs = np.array([x_[j] for x_ in X])
     return xs
+
+
+def fixed_softplus(x):
+    return torch.log1p(torch.exp(x))
