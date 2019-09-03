@@ -116,6 +116,20 @@ def run_battery(dataloader, params=None, lr=1e-3):
                 plt.tight_layout()
                 plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
                 plt.close()
+
+                fig, ax=plt.subplots(3,1, figsize=(6.5, 10))
+                i=np.random.randint(0, 32)
+                ax[0].plot(D.cpu().numpy().transpose())
+                ax[1].plot(D_tilde.detach().cpu().numpy().transpose())
+                ax[2].plot(np.vstack((D[i].cpu().numpy(), D_tilde[i].detach().cpu().numpy())).transpose(), )
+                ax[0].set_title("raw demand")
+                ax[1].set_title("priv demand")
+                ax[2].set_title("sampled demand plot")
+                ax[2].legend(['raw', 'priv'])
+                plt.tight_layout()
+                plt.savefig('../fig/demand_visual/iter_%d.png'%k)
+                plt.close()
+
             #     print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
 
             loss_priv.backward(retain_graph=True)

@@ -265,7 +265,7 @@ class Generator(nn.Module):
         tr_penalty = F.relu(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
         hyper_1 = 0.1 if hinge_loss_mean > 0 else 0
         hyper_2 = 100 if tr_penalty > 0 else 0
-        hyper_3 = 100 if neg_diag_penalty > 0 else 0
+        hyper_3 = 50 if neg_diag_penalty > 0 else 0
         return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty + hyper_3 * neg_diag_penalty
 
 
