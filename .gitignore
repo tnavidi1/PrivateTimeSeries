@@ -29,4 +29,6 @@ MANIFEST
 
 #
 fig/filter_visual/*.png
-
+#
+.DS_Store
+*/.DS_Store
