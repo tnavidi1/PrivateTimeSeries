@@ -40,7 +40,7 @@ def torch_bQuad(x, Q):
     return x.unsqueeze(1).bmm(Q).bmm(x.unsqueeze(2)).squeeze(1).squeeze(1)
 
 def torch_bLin(x, D, p):
-    return p.bmm(F.relu_((x + D).unsqueeze(2))).squeeze(1).squeeze(1)
+    return p.bmm(F.softplus((x + D).unsqueeze(2))).squeeze(1).squeeze(1)
 
 def objective_task_loss(price, x_ctrl, D, Q, T):
     # eval the objective

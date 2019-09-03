@@ -24,7 +24,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=10)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=32)
 
 
 
@@ -73,19 +73,28 @@ def run_battery(dataloader, params=None):
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
                        T=_default_horizon_, p=price,
                        device=None)
-    print(g)
+    # print(g)
     # raise NotImplementedError
+    optimizer = torch.optim.Adam(g.filter.parameters(), lr=1e-3)
+    # raise NotImplementedError(*g.filter.parameters())
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
             # controller(D)
+            optimizer.zero_grad()
             y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
             y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
             # print(D, y_labels, y_onehot)
             # D_tilde, z_noise = g.(D, y_onehot)
 
-            loss = g.util_loss(D, y_onehot)
-            print(loss)
-            print(loss.backward())
+            loss = g.util_loss(D, y_onehot, xi=1)
+            # print(loss)
+            print(torch.trace(g.filter.fc.weight.data))
+            print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
+            if k % 20 == 0:
+                print(g.filter.fc.weight.data)
+            # print(loss.backward())
+            loss.backward()
+            optimizer.step()
 
             # print(g.filter.fc.weight.shape) # 48 * 50
             # d = D_tilde[0]
@@ -124,7 +133,7 @@ def run_battery(dataloader, params=None):
 
 
             # print(x_ctrl)
-            if (k + 1) > 0:
+            if (k + 1) > 400:
                 raise NotImplementedError("manual break!")
 
 

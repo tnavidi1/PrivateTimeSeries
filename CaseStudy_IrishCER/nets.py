@@ -121,7 +121,7 @@ class Generator(nn.Module):
         z_noise = z_noise / z_noise.norm(2, dim=1).unsqueeze(1).repeat(1, self.z_dim)
 
         x_proc_noise = self.filter(z_noise, y)
-        x_priv = torch.relu(x + x_proc_noise)
+        x_priv = F.softplus(x + x_proc_noise)
         return x_priv, z_noise
 
     def sample_z(self, batch):
@@ -155,26 +155,18 @@ class Generator(nn.Module):
         res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p)
         x_sols = bUtil._convert_to_np_arr(res, 1)
         objs = bUtil._convert_to_np_scalars(res, 0)
-        # D_ = torch.tensor(torch.from_numpy(D_).to(torch.float), requires_grad=True)
 
         return objs, x_sols
 
-    def evaluate_cost_obj(self, x_sols, D, Y_onehot, p=None):
-        if p is None:
-            p = self.p
-
+    def evaluate_cost_obj(self, x_sols, p=None):
         D_ = self.cached_D_priv
         Q = self.Q
         T = self.T
-        # if isinstance(Y_onehot, torch.Tensor):
-        #     D_, z_noise = self.forward(D, Y_onehot)
-        # else:
-        #     raise NotImplementedError("=== Y_onehot: {} ===".format(Y_onehot))
         return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
 
 
 
-    def util_loss(self, D, Y_onehot, p=None):
+    def util_loss(self, D, Y_onehot, p=None, xi=0.01):
         if p is None:
             p = self.p
         obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None)
@@ -184,12 +176,19 @@ class Generator(nn.Module):
         [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
                                                       [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
 
-
-        # print(obj_priv)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
-        obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
+        obj_priv = self.evaluate_cost_obj(x_sol_priv, p=p)
         # return MSELoss
-        return F.mse_loss(obj_priv, obj_raw)
+        hinge_loss_mean = F.softplus(obj_priv - obj_raw).sum(0)
+        # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
+        eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
+        # print(self.filter.fc.weight.data[:, :48].shape)
+        raise NotImplementedError
+        # + neg_tr_penalty
+        tr_penalty = F.relu(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        hyper_lambda = 0.1 if hinge_loss_mean > 0 else 0
+        hyper_nu = 10 if tr_penalty > 0 else 0
+        return hyper_lambda * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_nu * tr_penalty + neg_tr_penalty
 
 
 
