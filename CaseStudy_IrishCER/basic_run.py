@@ -75,7 +75,7 @@ def run_battery(dataloader, params=None):
                        device=None)
     # print(g)
     # raise NotImplementedError
-    optimizer = torch.optim.Adam(g.filter.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(g.filter.parameters(), lr=2*1e-3)
     # raise NotImplementedError(*g.filter.parameters())
     with tqdm(dataloader) as pbar:
         for k, (D, Y) in enumerate(pbar):
@@ -88,9 +88,9 @@ def run_battery(dataloader, params=None):
 
             loss = g.util_loss(D, y_onehot, xi=1)
             # print(loss)
-            print(torch.trace(g.filter.fc.weight.data))
             print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
             if k % 20 == 0:
+                print(g.filter.fc.weight.data.shape)
                 print(g.filter.fc.weight.data)
             # print(loss.backward())
             loss.backward()
