@@ -68,6 +68,7 @@ def run_battery(dataloader, params=None):
     _default_horizon_ = 48
     torch.manual_seed(2)
     price = torch.rand((_default_horizon_, 1))  # price is a column vector
+
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
@@ -85,14 +86,13 @@ def run_battery(dataloader, params=None):
             y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
             # print(D, y_labels, y_onehot)
             # D_tilde, z_noise = g.(D, y_onehot)
-
             loss = g.util_loss(D, y_onehot, xi=1)
             # print(loss)
-            print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
             if k % 20 == 0:
                 print(g.filter.fc.weight.data.shape)
                 print(g.filter.fc.weight.data)
-            # print(loss.backward())
+                print(torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t())))
+
             loss.backward()
             optimizer.step()
 

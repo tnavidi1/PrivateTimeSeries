@@ -83,7 +83,7 @@ class PosLinear(nn.Module):
     """
     __constants__ = ['bias']
 
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features, bias=True, init_type="kaiming"):
         super(PosLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -92,13 +92,19 @@ class PosLinear(nn.Module):
             self.bias = Parameter(torch.Tensor(out_features))
         else:
             self.register_parameter('bias', None)
+        self.init_type =init_type
         self.reset_parameters()
 
     def reset_parameters(self):
         # init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-        bound = 1 / math.sqrt(fan_in)
-        init.uniform_(self.weight, 0, 2*bound)
+        if self.init_type == "kaiming":
+            init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        elif self.init_type == "uniform":
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.weight, 0, 2*bound)
+        else:
+            init.kaiming_normal_(self.weight, a=math.sqrt(5))
 
         if self.bias is not None:
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
@@ -122,13 +128,13 @@ class PosLinear(nn.Module):
 # To align with previous model conventions in class
 class LinearFilter(nn.Module):
 
-    def __init__(self, input_dim = 10, y_dim=0, output_dim=10, bias=None):
+    def __init__(self, input_dim = 10, y_dim=0, output_dim=10, bias=None, init_type="uniform"):
         super(LinearFilter, self).__init__()
         self.input_dim = input_dim
         self.y_dim = y_dim
         self.output_dim = output_dim
         # self.fc = nn.Linear(self.input_dim + self.y_dim, self.output_dim, bias=bias)
-        self.fc = PosLinear(self.input_dim + self.y_dim, self.output_dim, bias=bias)
+        self.fc = PosLinear(self.input_dim + self.y_dim, self.output_dim, bias=bias, init_type=init_type)
 
     def forward(self, x, y=None):
         """
@@ -169,7 +175,7 @@ class Generator(nn.Module):
         self.device = device
 
         # create a linear filter # @since 2019/08/29 modify zero bias
-        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=False)  # setting noise dim is same as latent dim
+        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=False, init_type="kaiming")  # setting noise dim is same as latent dim
         # Set prior as fixed parameter attached to module
         self.z_prior_m = Parameter(torch.zeros(1), requires_grad=False)
         self.z_prior_v = Parameter(torch.ones(1), requires_grad=False)
