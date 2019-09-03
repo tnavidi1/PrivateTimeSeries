@@ -72,8 +72,8 @@ def run_battery(dataloader, params=None, lr=1e-3):
 
     _default_horizon_ = 48
     torch.manual_seed(2)
-    price = torch.rand((_default_horizon_, 1))  # price is a column vector
-
+    # price = torch.rand((_default_horizon_, 1))  # price is a column vector
+    price = bUtil.create_price()
     Q, q, G, h, A, b, T, price = _form_QP_params(params, p=price)
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
@@ -112,6 +112,7 @@ def run_battery(dataloader, params=None, lr=1e-3):
                 print(g.filter.fc.weight.data)
                 plt.figure(figsize=(6, 5))
                 sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
+                plt.title("iter==%d" % k)
                 plt.tight_layout()
                 plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
                 plt.close()

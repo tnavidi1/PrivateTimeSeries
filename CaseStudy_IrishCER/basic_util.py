@@ -18,6 +18,22 @@ def convert_binary_label(y_label, median=4):
 
 
 
+
+def create_price(steps_perHr=2):
+    HORIZON = 24
+    T1 = 16
+    T2 = T1 + 5
+    T3 = HORIZON
+    rate_offpeak = 0.202
+    rate_onpeak = 0.463
+    price_shape = np.hstack((rate_offpeak * np.ones((1, T1 * steps_perHr)),
+                             rate_onpeak * np.ones((1, (T2-T1) * steps_perHr)),
+                             rate_offpeak * np.ones((1, (T3-T2) * steps_perHr ))))
+    p = torch.from_numpy(price_shape).to(torch.float).reshape(-1, 1)
+    return p
+
+
+
 def _form_QP_params(param_set, p=None):
     """
 

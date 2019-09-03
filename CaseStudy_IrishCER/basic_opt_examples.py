@@ -39,7 +39,7 @@ def _create_price(steps_perHr=2):
     price_shape = np.hstack((rate_offpeak * np.ones((1, T1 * steps_perHr)),
                              rate_onpeak * np.ones((1, (T2-T1) * steps_perHr)),
                              rate_offpeak * np.ones((1, (T3-T2) * steps_perHr ))))
-    p = torch.Tensor(price_shape).reshape(-1, 1)
+    p = torch.from_numpy(price_shape).to(torch.float).reshape(-1, 1)
     return p
 
 
