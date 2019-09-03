@@ -122,9 +122,6 @@ class PosLinear(nn.Module):
 
 
 
-
-
-
 # To align with previous model conventions in class
 class LinearFilter(nn.Module):
 
@@ -258,22 +255,18 @@ class Generator(nn.Module):
 
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         obj_priv = self.evaluate_cost_obj(x_sol_priv, p=p)
-        # return MSELoss
+
         hinge_loss_mean = F.softplus(obj_priv - obj_raw).sum(0)
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
         # eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
-        eigvals = torch.diag(self.filter.fc.weight.data[:, :48])
-        neg_eig_vals =  torch.min(eigvals)
-        neg_eig_penalty = F.relu(-neg_eig_vals)
-        # print(self.filter.fc.weight.data[:, :48].shape)
-        # raise NotImplementedError
-        # + neg_tr_penalty
-        print("eig values", eigvals)
+        diagvals = torch.diag(self.filter.fc.weight.data[:, :48])
+        min_diag_vals =  torch.min(diagvals)
+        neg_diag_penalty = F.relu(-min_diag_vals)
         tr_penalty = F.relu(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_lambda = 0.01 if hinge_loss_mean > 0 else 0
-        hyper_nu = 100 if tr_penalty > 0 else 0
-        hyper_sai = 200 if neg_eig_penalty > 0 else 0
-        return hyper_lambda * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_nu * tr_penalty + hyper_sai * neg_eig_penalty
+        hyper_1 = 0.1 if hinge_loss_mean > 0 else 0
+        hyper_2 = 100 if tr_penalty > 0 else 0
+        hyper_3 = 100 if neg_diag_penalty > 0 else 0
+        return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty + hyper_3 * neg_diag_penalty
 
 
 
