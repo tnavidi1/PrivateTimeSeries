@@ -316,6 +316,11 @@ The filter weight (based on a random vector and single demand) can be visualized
 
 
 
+___
+Crude check for the filter weights 
+
+![linear_filter](fig/filter_visual/out.gif)
+
 
 
 One caveat objective   
