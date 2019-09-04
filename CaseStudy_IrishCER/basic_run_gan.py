@@ -57,14 +57,16 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr)
     # raise NotImplementedError(*g.filter.parameters())
-    batchs_length =len(dataloader)
+    # batchs_length =len(dataloader)
     losses_gen = []
     losses_adv = []
     # for j in range(ep):
     j = 0
-    best_val_acc = 0.0
+    best_val_acc = 1.0
     loss_avg_g = bUtil.RunningAverage()
     loss_avg_priv = bUtil.RunningAverage()
+    acc_avg = bUtil.RunningAverage()
+    acc_avg.update(best_val_acc)
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
         while True:
@@ -76,6 +78,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
             # raise NotImplementedError(len(dataloader))
             for k, (D, Y) in enumerate(dataloader):
                 #
+                bsz = D.shape[0]
                 j += 1
                 k = j
                 # k = j * batchs_length + k
@@ -119,7 +122,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
                                  tr='{:.3e}'.format(trace_track)
                                  )
-                pbar.update(10)
+                pbar.update(1)
 
                 losses_adv.append(loss_avg_priv())
                 losses_gen.append(loss_avg_g())
@@ -138,10 +141,11 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                     return
 
                 val_acc = float(correct_cnt) / tot_cnt
-                is_best = val_acc >= best_val_acc
+                acc_avg.update(val_acc)
+                is_best = acc_avg() <= best_val_acc
 
 
-                if j % iter_save == 0:
+                if j % iter_save == 0 and j > 99:
                     bUtil.save_checkpoint({'epoch': k + 1,
                                            'g_state_dict': g.state_dict(),
                                            'g_optim_dict': optimizer_g.state_dict(),
@@ -150,26 +154,29 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                            'loss_g': losses_gen,
                                            'loss_a': losses_adv},
                                             is_best=is_best,
-                                            checkpoint=dir_folder)
+                                            checkpoint=dir_folder, filname='iter_%4d.pth.tar')
 
-                if is_best:
-                    logging.info("- Found new best accuracy")
-                    best_val_acc = val_acc
+                    res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%d.json"%j)
+                    # val_acc = float(correct_cnt) / tot_cnt
+                    bUtil.save_dict_to_json(val_metrics, res_json_path)
 
-                    # Save best val metrics in a json file in the model directory
-                    best_json_path = os.path.join(dir_folder, "metrics_val_best_weights.json")
-                    bUtil.save_dict_to_json(val_metrics, best_json_path)
+                    if is_best:
+                        logging.info("- Found new best accuracy")
+                        best_val_acc = acc_avg()
+
+                        # Save best val metrics in a json file in the model directory
+                        best_json_path = os.path.join(dir_folder, "metrics_val_best_weights.json")
+                        bUtil.save_dict_to_json(val_metrics, best_json_path)
 
                 # Save latest val metrics in a json file in the model directory
 
-                if k % 50 == 0 and verbose == 1:
-                    z_noise_gen = g.sample_z(batch=32)
+                if k % iter_save == 0 and verbose == 1:
+                    z_noise_gen = g.sample_z(batch=bsz)
                     z_noise_gen = z_noise_gen / z_noise_gen.norm(2, dim=1).unsqueeze(1).repeat(1, _default_horizon_)
                     concat_noise = torch.cat([z_noise_gen, y_onehot], dim=1).cpu().numpy()
-
                     out_purtbation = (concat_noise).dot(g.filter.fc.weight.data.cpu().numpy().transpose())
                     # print(out_purtbation)
-                    ind_ = np.random.randint(low=0, high=32, size=4)
+                    ind_ = np.random.randint(low=0, high=bsz, size=4)
                     fig, ax =plt.subplots(2, 2, figsize=(9, 5))
                     max_axis_up = max(np.max(concat_noise[ind_]), np.max(out_purtbation[ind_].transpose()))
                     min_axis_up = min(np.min(concat_noise[ind_]), np.min(out_purtbation[ind_].transpose()))
@@ -201,6 +208,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                     #############################
                     plt.figure(figsize=(6.5,5))
                     s = k - 1001 if k > 1001 else 0
+                    # s = 50
                     t = k
                     plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')
                     plt.plot(np.arange(len(losses_gen[s:t])), losses_gen[s:t], label='gen loss')
@@ -211,13 +219,13 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
                 # =======================================
                 # plot out figures
-                if k % 50 == 0 and savefig is True:
+                if k % iter_save == 0 and savefig is True:
                     # print(g.filter.fc.weight.data)
                     plt.figure(figsize=(6, 5))
                     sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
                     plt.title("iter==%d" % k)
                     plt.tight_layout()
-                    plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
+                    plt.savefig('%s/filter_visual_weight_%d.png' %( dir_folder, k))
                     plt.close('all')
 
                     fig, ax=plt.subplots(3,1, figsize=(6.5, 10))
@@ -230,7 +238,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                     ax[2].set_title("sampled demand plot")
                     ax[2].legend(['raw', 'priv'])
                     plt.tight_layout()
-                    plt.savefig('../fig/demand_visual/iter_%d.png'%k)
+                    plt.savefig('%s/demand_visual_iter_%d.png'%(dir_folder,k))
                     plt.close('all')
 
             # last_json_path = os.path.join(dir_folder, "metrics_val_last_weights.json")
@@ -239,6 +247,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
 
-for xi in [10, 20]:
-    run_battery(dataloader_dict['train'], params=params, iter_max=3001, lr=1e-3, xi=xi, tradeoff_beta=2)
+for xi in [10, 50]:
+    run_battery(dataloader_dict['train'], params=params, iter_max=4001, iter_save=200,
+                lr=1e-3, xi=xi, tradeoff_beta=2, savefig=True, verbose=1)
 

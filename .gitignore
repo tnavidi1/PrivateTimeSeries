@@ -27,8 +27,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-#
+### customized ###  
 fig/filter_visual/*.png
 #
 .DS_Store
 */.DS_Store
+fig/demand_visual/
+fig/
+CaseStudy_IrishCER/discarded_notebook/
