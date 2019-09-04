@@ -41,7 +41,7 @@ def _extract_filter_weight(x):
 
 
 def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
-                tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1):
+                tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1, n_job=5):
     ## multiple iterations
     # init price
 
@@ -53,7 +53,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
     # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
                        T=_default_horizon_, p=price,
-                       device=None)
+                       device=None, n_job=n_job)
 
     clf = nets.Classifier(z_dim=48, y_dim=2)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
@@ -286,4 +286,4 @@ if __name__ == '__main__':
                 lr=params.learning_rate, xi=params.xi,
                 tradeoff_beta1=params.tradeoff_beta1,
                 tradeoff_beta2=params.tradeoff_beta2,
-                savefig=True, verbose=1)
+                savefig=True, verbose=1, n_job=params.num_workers)

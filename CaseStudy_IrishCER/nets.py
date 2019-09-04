@@ -153,7 +153,7 @@ class LinearFilter(nn.Module):
 class Generator(nn.Module):
     def __init__(self, nn='v1', name='g_filter', z_dim=24, y_priv_dim=2,
                  Q=None, G=None, h = None, A=None, b=None, T=24, p=None,
-                 device=None):
+                 device=None, n_job=11):
         """
 
         :param nn:
@@ -175,6 +175,7 @@ class Generator(nn.Module):
         self.y_priv_dim = y_priv_dim
         self._set_convex_prob_param(p, Q, G, h, A, b, T)
         self.device = device
+        self.n_job = n_job
 
         # create a linear filter # @since 2019/08/29 modify zero bias
         self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=False, init_type="kaiming")  # setting noise dim is same as latent dim
@@ -234,7 +235,7 @@ class Generator(nn.Module):
         print(params[0].size())
         print(params[0])
 
-    def solve_convex_forumation(self, p, D, Q, G, h, A, b, Y_onehot=None):
+    def solve_convex_forumation(self, p, D, Q, G, h, A, b, Y_onehot=None, n_job=10):
         batch_size = D.shape[0]
         D_ = D
         if isinstance(Y_onehot, torch.Tensor):
@@ -254,7 +255,7 @@ class Generator(nn.Module):
         p = ut.to_np(p)
         D_detached = ut.to_np(D_.detach())
         # this call numpy data
-        res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=11)
+        res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
         x_sols = bUtil._convert_to_np_arr(res, 1)
         objs = bUtil._convert_to_np_scalars(res, 0)
 
@@ -284,8 +285,8 @@ class Generator(nn.Module):
 
         D_priv, z_noise = self.forward(D, Y_onehot)
 
-        obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None)
-        obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None)
+        obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
+        obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
 
         # convert obj_raw, obj_priv as tensor
         [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
