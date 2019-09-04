@@ -301,7 +301,7 @@ class Generator(nn.Module):
         # neg_diag_penalty = F.relu_(-min_diag_vals)
         # m = nn.utils.spectral_norm(self.filter.fc.weight.data[:, :48])
         tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_1 = 0.1 if hinge_loss_mean > 4*1e0 else 0
+        hyper_1 = 0.1 if hinge_loss_mean > 0.5 else 0.01
         hyper_2 = 10 if tr_penalty > 1e-3 else 0
         # hyper_3 = 1 if neg_diag_penalty > 1e-3 else 0
         return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty #+ 0.01* m #+ hyper_3 * neg_diag_penalty

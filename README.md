@@ -321,7 +321,7 @@ Crude check for the filter weights
 
 ![linear_filter](fig/filter_visual/out.gif)
 
-
+![diagnostic_gif](fig/demand_visual_xi_0100_tbeta_0020/diagnose_out.gif)
 
 One caveat objective   
  

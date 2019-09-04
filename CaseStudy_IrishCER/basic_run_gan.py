@@ -4,6 +4,7 @@ from tqdm import tqdm
 import processData
 import nets
 import numpy as np
+import logging
 import sys, os
 sys.path.append("..")
 
@@ -38,7 +39,7 @@ def _extract_filter_weight(x):
 
 
 
-def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff_beta=0.5, savefig=False, verbose=1):
+def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5, tradeoff_beta=0.5, savefig=False, verbose=1):
     ## multiple iterations
     # init price
 
@@ -61,6 +62,9 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
     losses_adv = []
     # for j in range(ep):
     j = 0
+    best_val_acc = 0.0
+    loss_avg_g = bUtil.RunningAverage()
+    loss_avg_priv = bUtil.RunningAverage()
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
         while True:
@@ -68,6 +72,7 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
             tot_cnt = 0
             label_cnt1 = 0
             label_cnt2 = 0
+
             # raise NotImplementedError(len(dataloader))
             for k, (D, Y) in enumerate(dataloader):
                 #
@@ -99,7 +104,11 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
                 label_cnt1 += (y_labels == 0).sum()
                 label_cnt2 += (y_labels == 1).sum()
 
-                trace_track = torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t()))
+                trace_track = (torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t()))).cpu()
+
+                loss_avg_g.update(g_loss.item())
+                loss_avg_priv.update(loss_priv.item())
+
                 pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
                                  util_loss = '{:.3e}'.format(loss_util),
                                  priv_loss='{:.3e}'.format(loss_priv),
@@ -112,15 +121,46 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
                                  )
                 pbar.update(10)
 
-                losses_adv.append(loss_priv.item())
-                losses_gen.append(g_loss.item())
+                losses_adv.append(loss_avg_priv())
+                losses_gen.append(loss_avg_g())
+
+                val_metrics = {"acc": float(correct_cnt) / tot_cnt,
+                               "prop1": float(label_cnt1) / tot_cnt,
+                               "prop2": float(label_cnt2) /  tot_cnt,
+                               "tr": trace_track.item()}
+
+                dir_folder = '../fig/demand_visual_xi_{:04.0f}_tbeta_{:04.0f}'.format(xi * 10, tradeoff_beta * 10)
+                if not os.path.exists(dir_folder):
+                    os.mkdir(dir_folder)
+
 
                 if j == iter_max:
                     return
 
-                dir_folder = '../fig/demand_visual_xi_{:04.0f}_tbeta_{:04.0f}'.format(xi * 10, tradeoff_beta*10)
-                if not os.path.exists(dir_folder):
-                    os.mkdir(dir_folder)
+                val_acc = float(correct_cnt) / tot_cnt
+                is_best = val_acc >= best_val_acc
+
+
+                if j % iter_save == 0:
+                    bUtil.save_checkpoint({'epoch': k + 1,
+                                           'g_state_dict': g.state_dict(),
+                                           'g_optim_dict': optimizer_g.state_dict(),
+                                           'clf_state_dict': clf.state_dict(),
+                                           'clf_optim_dict': optimizer_clf.state_dict(),
+                                           'loss_g': losses_gen,
+                                           'loss_a': losses_adv},
+                                            is_best=is_best,
+                                            checkpoint=dir_folder)
+
+                if is_best:
+                    logging.info("- Found new best accuracy")
+                    best_val_acc = val_acc
+
+                    # Save best val metrics in a json file in the model directory
+                    best_json_path = os.path.join(dir_folder, "metrics_val_best_weights.json")
+                    bUtil.save_dict_to_json(val_metrics, best_json_path)
+
+                # Save latest val metrics in a json file in the model directory
 
                 if k % 50 == 0 and verbose == 1:
                     z_noise_gen = g.sample_z(batch=32)
@@ -160,7 +200,7 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
 
                     #############################
                     plt.figure(figsize=(6.5,5))
-                    s = k - 101 if k > 101 else 0
+                    s = k - 1001 if k > 1001 else 0
                     t = k
                     plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')
                     plt.plot(np.arange(len(losses_gen[s:t])), losses_gen[s:t], label='gen loss')
@@ -193,12 +233,12 @@ def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff
                     plt.savefig('../fig/demand_visual/iter_%d.png'%k)
                     plt.close('all')
 
-
-
+            # last_json_path = os.path.join(dir_folder, "metrics_val_last_weights.json")
+            # bUtil.save_dict_to_json(val_metrics, last_json_path)
 
 
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
 
 for xi in [10, 20]:
-    run_battery(dataloader_dict['train'], params=params, iter_max=5000, lr=1e-3, xi=xi, tradeoff_beta=2)
+    run_battery(dataloader_dict['train'], params=params, iter_max=3001, lr=1e-3, xi=xi, tradeoff_beta=2)
 
