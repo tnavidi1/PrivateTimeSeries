@@ -136,14 +136,14 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                "prop2": float(label_cnt2) /  tot_cnt,
                                "tr": trace_track.item()}
 
-                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2{:4.0f}'.format(args.save_dir,
+                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}'.format(args.save_dir,
                                                                                     args.param_file,
                                                                                     xi,
                                                                                     tradeoff_beta1,
                                                                                     tradeoff_beta2)
+
                 if not os.path.exists(dir_folder):
                     os.mkdir(dir_folder)
-
 
                 if j == iter_max:
                     return
@@ -164,10 +164,10 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                            'obj_raw': batch_j_obj_raw,
                                            'obj_priv': batch_j_obj_priv},
                                             is_best=is_best,
-                                            checkpoint=dir_folder, filname='iter_%4d.pth.tar')
+                                            checkpoint=dir_folder, filename='iter_%04d.pth.tar' % j)
 
                     print(batch_j_obj_raw, batch_j_obj_priv)
-                    res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%d.json"%j)
+                    res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%04d.json"%j)
                     # val_acc = float(correct_cnt) / tot_cnt
                     bUtil.save_dict_to_json(val_metrics, res_json_path)
 
