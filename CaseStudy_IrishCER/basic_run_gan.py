@@ -124,7 +124,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                  acc='{:.2e}'.format(float(correct_cnt) / tot_cnt),
                                  prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
-                                 tr='{:.3e}'.format(trace_track)
+                                 tr='{:.2e}'.format(trace_track)
                                  )
                 pbar.update(1)
 

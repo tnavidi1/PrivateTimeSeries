@@ -291,10 +291,12 @@ class Generator(nn.Module):
         [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
                                                       [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
 
-        self._objective_vals_setter(obj_raw, obj_priv)
+
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
-        obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
+        # obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
+        obj_priv = self.evaluate_cost_obj(x_sol_raw, D_=D_priv, p=p)
         # self._check_values(obj_priv, obj_raw)
+        self._objective_vals_setter(obj_raw, obj_priv)
 
         hinge_loss_mean = torch.clamp(obj_priv - obj_raw, min=0).mean()
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
