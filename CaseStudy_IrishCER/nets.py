@@ -269,10 +269,14 @@ class Generator(nn.Module):
 
 
     def _check_values(self, a, b):
-        print(a.mean())
-        print(b.mean())
-        print((a-b).mean())
+        raise NotImplementedError(a, b)
 
+    def _objective_vals_setter(self, obj_raw, obj_priv):
+        self.obj_raw = obj_raw
+        self.obj_priv = obj_priv
+
+    def _objective_vals_getter(self):
+        return self.obj_raw, self.obj_priv
 
     def util_loss(self, D, Y_onehot, p=None, xi=0.01):
         if p is None:
@@ -287,6 +291,7 @@ class Generator(nn.Module):
         [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
                                                       [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
 
+        self._objective_vals_setter(obj_raw, obj_priv)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
         # self._check_values(obj_priv, obj_raw)

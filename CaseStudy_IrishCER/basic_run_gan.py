@@ -5,7 +5,9 @@ import processData
 import nets
 import numpy as np
 import logging
-import sys, os
+import argparse
+import os
+import sys
 sys.path.append("..")
 
 import time
@@ -33,13 +35,13 @@ dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=32)
 
 
 
-
 def _extract_filter_weight(x):
     return optMini_util.to_np(x.data)
 
 
 
-def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5, tradeoff_beta=0.5, savefig=False, verbose=1):
+def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
+                tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1):
     ## multiple iterations
     # init price
 
@@ -96,7 +98,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 loss_priv.backward(retain_graph=True) # retain_graph=True
                 optimizer_clf.step()
 
-                g_loss = loss_util - tradeoff_beta * loss_priv #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                g_loss = tradeoff_beta1 * loss_util - tradeoff_beta2 * loss_priv #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 g_loss.backward()
                 optimizer_g.step()
 
@@ -111,6 +113,8 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
                 loss_avg_g.update(g_loss.item())
                 loss_avg_priv.update(loss_priv.item())
+
+                batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
 
                 pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
                                  util_loss = '{:.3e}'.format(loss_util),
@@ -132,7 +136,11 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                "prop2": float(label_cnt2) /  tot_cnt,
                                "tr": trace_track.item()}
 
-                dir_folder = '../fig/demand_visual_xi_{:04.0f}_tbeta_{:04.0f}'.format(xi * 10, tradeoff_beta * 10)
+                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2{:4.0f}'.format(args.save_dir,
+                                                                                    args.param_file,
+                                                                                    xi,
+                                                                                    tradeoff_beta1,
+                                                                                    tradeoff_beta2)
                 if not os.path.exists(dir_folder):
                     os.mkdir(dir_folder)
 
@@ -144,18 +152,21 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 acc_avg.update(val_acc)
                 is_best = acc_avg() <= best_val_acc
 
-
                 if j % iter_save == 0 and j > 99:
+
                     bUtil.save_checkpoint({'epoch': k + 1,
                                            'g_state_dict': g.state_dict(),
                                            'g_optim_dict': optimizer_g.state_dict(),
                                            'clf_state_dict': clf.state_dict(),
                                            'clf_optim_dict': optimizer_clf.state_dict(),
                                            'loss_g': losses_gen,
-                                           'loss_a': losses_adv},
+                                           'loss_a': losses_adv,
+                                           'obj_raw': batch_j_obj_raw,
+                                           'obj_priv': batch_j_obj_priv},
                                             is_best=is_best,
                                             checkpoint=dir_folder, filname='iter_%4d.pth.tar')
 
+                    print(batch_j_obj_raw, batch_j_obj_priv)
                     res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%d.json"%j)
                     # val_acc = float(correct_cnt) / tot_cnt
                     bUtil.save_dict_to_json(val_metrics, res_json_path)
@@ -245,9 +256,34 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
             # bUtil.save_dict_to_json(val_metrics, last_json_path)
 
 
-params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
+# params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
+# for xi in [10, 50]:
+#     run_battery(dataloader_dict['train'], params=params, iter_max=4001, iter_save=200,
+#                 lr=1e-3, xi=xi, tradeoff_beta1=1, tradeoff_beta2=1, savefig=True, verbose=1)
 
-for xi in [10, 50]:
-    run_battery(dataloader_dict['train'], params=params, iter_max=4001, iter_save=200,
-                lr=1e-3, xi=xi, tradeoff_beta=2, savefig=True, verbose=1)
 
+
+if __name__ == '__main__':
+
+
+
+    parser = argparse.ArgumentParser()
+    # Load the parameters from json file
+
+    parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
+    parser.add_argument('--save_dir', default='experiments/models_logs', help="Directory of models logs")
+    parser.add_argument('--param_file', default="param_set_01", )
+    args = parser.parse_args()
+    json_path = os.path.join(args.model_dir, args.param_file+'.json')
+    assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
+    params = bUtil.Params(json_path)
+    # print(*params.dict)
+    if not os.path.exists(args.save_dir):
+        os.mkdir(args.save_dir)
+        print("create a folder")
+
+    run_battery(dataloader_dict['train'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
+                lr=params.learning_rate, xi=params.xi,
+                tradeoff_beta1=params.tradeoff_beta1,
+                tradeoff_beta2=params.tradeoff_beta2,
+                savefig=True, verbose=1)
