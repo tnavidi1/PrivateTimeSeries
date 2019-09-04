@@ -109,3 +109,6 @@ class QP_privD(Function):
 # x = torch.randn(3, 3)
 # x = x.unsqueeze(0)
 # print(x.repeat(2, 1, 1))
+
+# c = torch.tensor([[ 1, 2, 3],[-1, 1, 4]] , dtype= torch.float)
+# print(torch.norm(c, p=1, dim=0))

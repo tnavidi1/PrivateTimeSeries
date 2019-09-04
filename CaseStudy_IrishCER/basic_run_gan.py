@@ -38,7 +38,7 @@ def _extract_filter_weight(x):
 
 
 
-def run_battery(dataloader, params=None, ep=500, lr=1e-3, xi=0.5, tradeoff_beta=0.5, savefig=False, verbose=1):
+def run_battery(dataloader, params=None, iter_max=500, lr=1e-3, xi=0.5, tradeoff_beta=0.5, savefig=False, verbose=1):
     ## multiple iterations
     # init price
 
@@ -61,133 +61,137 @@ def run_battery(dataloader, params=None, ep=500, lr=1e-3, xi=0.5, tradeoff_beta=
     losses_adv = []
     # for j in range(ep):
     j = 0
-    with tqdm(total=ep) as pbar:
+    with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
-        correct_cnt = 0
-        tot_cnt = 0
-        label_cnt1 = 0
-        label_cnt2 = 0
-        # raise NotImplementedError(len(dataloader))
-        for k, (D, Y) in enumerate(dataloader):
-            #
-            j += 1
-            k = j
-            # k = j * batchs_length + k
-            optimizer_g.zero_grad()
-            optimizer_clf.zero_grad()
-            y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
-            y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
-            D_tilde, z_noise = g.forward(D, y_onehot)
+        while True:
+            correct_cnt = 0
+            tot_cnt = 0
+            label_cnt1 = 0
+            label_cnt2 = 0
+            # raise NotImplementedError(len(dataloader))
+            for k, (D, Y) in enumerate(dataloader):
+                #
+                j += 1
+                k = j
+                # k = j * batchs_length + k
+                optimizer_g.zero_grad()
+                optimizer_clf.zero_grad()
+                y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
+                y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
+                D_tilde, z_noise = g.forward(D, y_onehot)
 
-            y_out = clf(D_tilde)
-            loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
-                                       ignore_index=-100, reduction='mean')
-            loss_util = g.util_loss(D, y_onehot, xi=xi)
+                y_out = clf(D_tilde)
+                loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
+                                           ignore_index=-100, reduction='mean')
+                loss_util = g.util_loss(D, y_onehot, xi=xi)
 
-            loss_priv.backward(retain_graph=True) # retain_graph=True
-            optimizer_clf.step()
+                loss_priv.backward(retain_graph=True) # retain_graph=True
+                optimizer_clf.step()
 
-            g_loss = loss_util - tradeoff_beta * loss_priv #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
-            g_loss.backward()
-            optimizer_g.step()
+                g_loss = loss_util - tradeoff_beta * loss_priv #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                g_loss.backward()
+                optimizer_g.step()
 
-            _, y_max_idx = torch.max(y_out, dim=1)
-            correct = y_max_idx == y_labels
-            correct_cnt += correct.sum()
-            tot_cnt += D.shape[0]
-            label_cnt1 += (y_labels == 0).sum()
-            label_cnt2 += (y_labels == 1).sum()
+                _, y_max_idx = torch.max(y_out, dim=1)
+                correct = y_max_idx == y_labels
+                correct_cnt += correct.sum()
+                tot_cnt += D.shape[0]
+                label_cnt1 += (y_labels == 0).sum()
+                label_cnt2 += (y_labels == 1).sum()
 
-            trace_track = torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t()))
-            pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
-                             util_loss = '{:.3e}'.format(loss_util),
-                             priv_loss='{:.3e}'.format(loss_priv),
-                             # cor_cnts='{:d}'.format(correct_cnt),
-                             # tot_cnts='{:d}'.format(tot_cnt),
-                             acc='{:.2e}'.format(float(correct_cnt) / tot_cnt),
-                             prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
-                             prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
-                             tr='{:.3e}'.format(trace_track)
-                             )
-            pbar.update(10)
+                trace_track = torch.trace(torch.mm(g.filter.fc.weight.data, g.filter.fc.weight.data.t()))
+                pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
+                                 util_loss = '{:.3e}'.format(loss_util),
+                                 priv_loss='{:.3e}'.format(loss_priv),
+                                 # cor_cnts='{:d}'.format(correct_cnt),
+                                 # tot_cnts='{:d}'.format(tot_cnt),
+                                 acc='{:.2e}'.format(float(correct_cnt) / tot_cnt),
+                                 prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
+                                 prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
+                                 tr='{:.3e}'.format(trace_track)
+                                 )
+                pbar.update(10)
 
-            losses_adv.append(loss_priv.item())
-            losses_gen.append(g_loss.item())
+                losses_adv.append(loss_priv.item())
+                losses_gen.append(g_loss.item())
 
-            dir_folder = '../fig/demand_visual_xi_{:04.0f}_tbeta_{:04.0f}'.format(xi * 10, tradeoff_beta*10)
-            if not os.path.exists(dir_folder):
-                os.mkdir(dir_folder)
+                if j == iter_max:
+                    return
 
-            if k % 50 == 0 and verbose == 1:
-                z_noise_gen = g.sample_z(batch=32)
-                z_noise_gen = z_noise_gen / z_noise_gen.norm(2, dim=1).unsqueeze(1).repeat(1, _default_horizon_)
-                concat_noise = torch.cat([z_noise_gen, y_onehot], dim=1).cpu().numpy()
+                dir_folder = '../fig/demand_visual_xi_{:04.0f}_tbeta_{:04.0f}'.format(xi * 10, tradeoff_beta*10)
+                if not os.path.exists(dir_folder):
+                    os.mkdir(dir_folder)
 
-                out_purtbation = (concat_noise).dot(g.filter.fc.weight.data.cpu().numpy().transpose())
-                # print(out_purtbation)
-                ind_ = np.random.randint(low=0, high=32, size=4)
-                fig, ax =plt.subplots(2, 2, figsize=(9, 5))
-                max_axis_up = max(np.max(concat_noise[ind_]), np.max(out_purtbation[ind_].transpose()))
-                min_axis_up = min(np.min(concat_noise[ind_]), np.min(out_purtbation[ind_].transpose()))
+                if k % 50 == 0 and verbose == 1:
+                    z_noise_gen = g.sample_z(batch=32)
+                    z_noise_gen = z_noise_gen / z_noise_gen.norm(2, dim=1).unsqueeze(1).repeat(1, _default_horizon_)
+                    concat_noise = torch.cat([z_noise_gen, y_onehot], dim=1).cpu().numpy()
 
-                ax[0, 0].plot(concat_noise[ind_].transpose())
-                ax[0, 0].set_title("noise")
+                    out_purtbation = (concat_noise).dot(g.filter.fc.weight.data.cpu().numpy().transpose())
+                    # print(out_purtbation)
+                    ind_ = np.random.randint(low=0, high=32, size=4)
+                    fig, ax =plt.subplots(2, 2, figsize=(9, 5))
+                    max_axis_up = max(np.max(concat_noise[ind_]), np.max(out_purtbation[ind_].transpose()))
+                    min_axis_up = min(np.min(concat_noise[ind_]), np.min(out_purtbation[ind_].transpose()))
 
-                ax[0, 1].plot(out_purtbation[ind_].transpose())
-                ax[0, 1].set_title("out noise")
-                ax[0, 0].set_ylim(min_axis_up, max_axis_up)
-                ax[0, 1].set_ylim(min_axis_up, max_axis_up)
+                    ax[0, 0].plot(concat_noise[ind_].transpose())
+                    ax[0, 0].set_title("noise")
 
-                max_axis_low = max(np.max(D[ind_].t().cpu().numpy())*1.05, np.max(D_tilde[ind_].detach().cpu().numpy()) * 1.05)
-                min_axis_low = min(np.min(D[ind_].t().cpu().numpy()), np.min(D_tilde[ind_].detach().cpu().numpy()))
-                ax[1, 0].plot(D[ind_].t().cpu().numpy() )
-                ax[1, 0].plot((out_purtbation[ind_]+D[ind_].cpu().numpy()).transpose(), '--')
-                ax[1, 0].set_title("raw and alter demand")
+                    ax[0, 1].plot(out_purtbation[ind_].transpose())
+                    ax[0, 1].set_title("out noise")
+                    ax[0, 0].set_ylim(min_axis_up, max_axis_up)
+                    ax[0, 1].set_ylim(min_axis_up, max_axis_up)
 
-                ax[1, 1].plot(D[ind_].t().cpu().numpy())
-                ax[1, 1].plot((D_tilde[ind_].detach().cpu().numpy()).transpose(), '--')
-                ax[1, 1].set_title("another view of alter demand")
-                ax[1, 0].set_ylim(min_axis_low, max_axis_low)
-                ax[1, 1].set_ylim(min_axis_low, max_axis_low)
+                    max_axis_low = max(np.max(D[ind_].t().cpu().numpy())*1.05, np.max(D_tilde[ind_].detach().cpu().numpy()) * 1.05)
+                    min_axis_low = min(np.min(D[ind_].t().cpu().numpy()), np.min(D_tilde[ind_].detach().cpu().numpy()))
+                    ax[1, 0].plot(D[ind_].t().cpu().numpy() )
+                    ax[1, 0].plot((out_purtbation[ind_]+D[ind_].cpu().numpy()).transpose(), '--')
+                    ax[1, 0].set_title("raw and alter demand")
 
-                plt.tight_layout()
-                plt.savefig('%s/diagnose_iter_%d.png'%(dir_folder, k))
-                plt.close('all')
+                    ax[1, 1].plot(D[ind_].t().cpu().numpy())
+                    ax[1, 1].plot((D_tilde[ind_].detach().cpu().numpy()).transpose(), '--')
+                    ax[1, 1].set_title("another view of alter demand")
+                    ax[1, 0].set_ylim(min_axis_low, max_axis_low)
+                    ax[1, 1].set_ylim(min_axis_low, max_axis_low)
 
-                #############################
-                plt.figure(figsize=(6.5,5))
-                s = k - 101 if k > 101 else 0
-                t = k
-                plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')
-                plt.plot(np.arange(len(losses_gen[s:t])), losses_gen[s:t], label='gen loss')
-                plt.legend()
-                plt.tight_layout()
-                plt.savefig('%s/losses_iter_%d.png'%(dir_folder, k))
-                plt.close('all')
+                    plt.tight_layout()
+                    plt.savefig('%s/diagnose_iter_%d.png'%(dir_folder, k))
+                    plt.close('all')
 
-            # =======================================
-            # plot out figures
-            if k % 50 == 0 and savefig is True:
-                # print(g.filter.fc.weight.data)
-                plt.figure(figsize=(6, 5))
-                sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
-                plt.title("iter==%d" % k)
-                plt.tight_layout()
-                plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
-                plt.close('all')
+                    #############################
+                    plt.figure(figsize=(6.5,5))
+                    s = k - 101 if k > 101 else 0
+                    t = k
+                    plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')
+                    plt.plot(np.arange(len(losses_gen[s:t])), losses_gen[s:t], label='gen loss')
+                    plt.legend()
+                    plt.tight_layout()
+                    plt.savefig('%s/losses_iter_%d.png'%(dir_folder, k))
+                    plt.close('all')
 
-                fig, ax=plt.subplots(3,1, figsize=(6.5, 10))
-                i=np.random.randint(0, 32)
-                ax[0].plot(D.cpu().numpy().transpose())
-                ax[1].plot(D_tilde.detach().cpu().numpy().transpose())
-                ax[2].plot(np.vstack((D[i].cpu().numpy(), D_tilde[i].detach().cpu().numpy())).transpose() )
-                ax[0].set_title("raw demand")
-                ax[1].set_title("priv demand")
-                ax[2].set_title("sampled demand plot")
-                ax[2].legend(['raw', 'priv'])
-                plt.tight_layout()
-                plt.savefig('../fig/demand_visual/iter_%d.png'%k)
-                plt.close('all')
+                # =======================================
+                # plot out figures
+                if k % 50 == 0 and savefig is True:
+                    # print(g.filter.fc.weight.data)
+                    plt.figure(figsize=(6, 5))
+                    sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
+                    plt.title("iter==%d" % k)
+                    plt.tight_layout()
+                    plt.savefig('../fig/filter_visual/f_weight_%d.png' % k )
+                    plt.close('all')
+
+                    fig, ax=plt.subplots(3,1, figsize=(6.5, 10))
+                    i=np.random.randint(0, 32)
+                    ax[0].plot(D.cpu().numpy().transpose())
+                    ax[1].plot(D_tilde.detach().cpu().numpy().transpose())
+                    ax[2].plot(np.vstack((D[i].cpu().numpy(), D_tilde[i].detach().cpu().numpy())).transpose() )
+                    ax[0].set_title("raw demand")
+                    ax[1].set_title("priv demand")
+                    ax[2].set_title("sampled demand plot")
+                    ax[2].legend(['raw', 'priv'])
+                    plt.tight_layout()
+                    plt.savefig('../fig/demand_visual/iter_%d.png'%k)
+                    plt.close('all')
 
 
 
@@ -196,5 +200,5 @@ def run_battery(dataloader, params=None, ep=500, lr=1e-3, xi=0.5, tradeoff_beta=
 params = dict(c_i=0.99, c_o=0.98, eta_eff=0.95, T=48, B=1.5, beta1=0.6, beta2=0.4, beta3=0.5, alpha=0.2)
 
 for xi in [10, 20]:
-    run_battery(dataloader_dict['train'], params=params, ep=5, lr=1e-3, xi=xi, tradeoff_beta=2)
+    run_battery(dataloader_dict['train'], params=params, iter_max=5000, lr=1e-3, xi=xi, tradeoff_beta=2)
 
