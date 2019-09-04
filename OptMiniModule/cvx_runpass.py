@@ -502,9 +502,15 @@ def forward_D_batch(Qs, Gs, hs, As, bs, D, T, p=None, cp_sol = cp.SCS, n_jobs = 
         n_jobs = mp.cpu_count()
     # batch_size = len(D)
     batch_size = D.shape[0]
-    pool = ThreadPool(processes=n_jobs)
-    args = []
-    for i in range(batch_size):
-        args += [(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose)]
-
-    return pool.starmap(forward_single_d_cvx_wrapper, args)
+    # pool = ThreadPool(processes=n_jobs)
+    # args = []
+    # for i in range(batch_size):
+    #     args += [(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose)]
+    #
+    # return pool.starmap(forward_single_d_cvx_wrapper, args)
+    with mp.Pool(processes=n_jobs) as pool:
+        proc_results = [pool.apply_async(forward_single_d_cvx_wrapper,
+                                         args=(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose))\
+                                        for i in range(batch_size)]
+        res_chunk = [r.get() for r in proc_results]
+    return res_chunk

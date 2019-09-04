@@ -238,9 +238,10 @@ class Generator(nn.Module):
         batch_size = D.shape[0]
         D_ = D
         if isinstance(Y_onehot, torch.Tensor):
+            # don't do this due to the randomness in forward function
             D_, z_noise = self.forward(D, Y_onehot)
-            self.cached_noise = z_noise
-            self.cached_D_priv = D_
+            # self.cached_noise = z_noise
+            # self.cached_D_priv = D_
         elif Y_onehot is None:
             D_ = D
         else:
@@ -253,44 +254,57 @@ class Generator(nn.Module):
         p = ut.to_np(p)
         D_detached = ut.to_np(D_.detach())
         # this call numpy data
-        res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p)
+        res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=11)
         x_sols = bUtil._convert_to_np_arr(res, 1)
         objs = bUtil._convert_to_np_scalars(res, 0)
 
         return objs, x_sols
 
-    def evaluate_cost_obj(self, x_sols, p=None):
-        D_ = self.cached_D_priv
+    def evaluate_cost_obj(self, x_sols, D_, p=None):
+        # D_ = self.cached_D_priv
+        # D_ is a privatized demand
         Q = self.Q
         T = self.T
         return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
 
 
+    def _check_values(self, a, b):
+        print(a.mean())
+        print(b.mean())
+        print((a-b).mean())
+
 
     def util_loss(self, D, Y_onehot, p=None, xi=0.01):
         if p is None:
             p = self.p
+
+        D_priv, z_noise = self.forward(D, Y_onehot)
+
         obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None)
-        obj_priv, x_sol_priv = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=Y_onehot)
+        obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None)
 
         # convert obj_raw, obj_priv as tensor
         [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
                                                       [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
 
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
-        obj_priv = self.evaluate_cost_obj(x_sol_priv, p=p)
+        obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
+        # self._check_values(obj_priv, obj_raw)
 
-        hinge_loss_mean = F.relu_(obj_priv - obj_raw).sum(0)
+        hinge_loss_mean = torch.clamp(obj_priv - obj_raw, min=0).mean()
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
         # eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
-        diagvals = torch.diag(self.filter.fc.weight.data[:, :48])
-        min_diag_vals =  torch.min(diagvals)
-        neg_diag_penalty = F.relu_(-min_diag_vals)
+
+        # diagvals = torch.diag(self.filter.fc.weight.data[:, :48])
+
+        # min_diag_vals =  torch.min(diagvals)
+        # neg_diag_penalty = F.relu_(-min_diag_vals)
+        # m = nn.utils.spectral_norm(self.filter.fc.weight.data[:, :48])
         tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_1 = 0.1 if hinge_loss_mean > 1e-3 else 0
-        hyper_2 = 100 if tr_penalty > 1e-3 else 0
-        hyper_3 = 50 if neg_diag_penalty > 1e-3 else 0
-        return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty + hyper_3 * neg_diag_penalty
+        hyper_1 = 0.1 if hinge_loss_mean > 4*1e0 else 0
+        hyper_2 = 10 if tr_penalty > 1e-3 else 0
+        # hyper_3 = 1 if neg_diag_penalty > 1e-3 else 0
+        return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty #+ 0.01* m #+ hyper_3 * neg_diag_penalty
 
 
 
