@@ -105,9 +105,11 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 # tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
 
                 g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
-                g_loss.backward(retain_graph=True)
+                # g_loss.backward(retain_graph=True)
+                g_loss.backward()
+                g.filter.fc.weight.data -= lr * util_grad
                 # raise NotImplementedError(g.filter.fc.weight.grad.shape)
-                g_loss.backward(gradient=(util_grad))
+                # g_loss.backward(gradient=(util_grad))
                 optimizer_g.step()
                 # raise NotImplementedError
 
@@ -124,7 +126,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 loss_avg_priv.update(loss_priv.item())
 
                 batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
-
+                gap_obj = (batch_j_obj_priv.data.t() - batch_j_obj_raw.data.t()).mean()
                 pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
                                  util_loss = '{:.3e}'.format(loss_util),
                                  priv_loss='{:.3e}'.format(loss_priv),
@@ -133,7 +135,8 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                  acc='{:.2e}'.format(float(correct_cnt) / tot_cnt),
                                  prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
-                                 tr='{:.2e}'.format(trace_track)
+                                 tr='{:.2e}'.format(trace_track),
+                                 gap = '{:.2e}'.format(gap_obj.item())
                                  )
                 pbar.update(1)
 
@@ -161,7 +164,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 acc_avg.update(val_acc)
                 is_best = acc_avg() <= best_val_acc
 
-                if j % iter_save == 0 :
+                if j % iter_save == 1 :
 
                     bUtil.save_checkpoint({'epoch': k + 1,
                                            'g_state_dict': g.state_dict(),
@@ -176,7 +179,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                             checkpoint=dir_folder, filename='iter_%04d.pth.tar' % j)
 
                     print(batch_j_obj_raw.data, batch_j_obj_priv.data)
-                    print(batch_j_obj_raw.data.t()-batch_j_obj_priv.data.t())
+                    # print()
                     res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%04d.json"%j)
                     # val_acc = float(correct_cnt) / tot_cnt
                     bUtil.save_dict_to_json(val_metrics, res_json_path)
@@ -191,7 +194,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
                 # Save latest val metrics in a json file in the model directory
 
-                if k % iter_save == 0 and verbose == 1:
+                if k % iter_save == 1 and verbose == 1:
                     z_noise_gen = g.sample_z(batch=bsz)
                     z_noise_gen = z_noise_gen / z_noise_gen.norm(2, dim=1).unsqueeze(1).repeat(1, _default_horizon_)
                     concat_noise = torch.cat([z_noise_gen, y_onehot], dim=1).cpu().numpy()
@@ -240,7 +243,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
                 # =======================================
                 # plot out figures
-                if k % iter_save == 0 and savefig is True:
+                if k % iter_save == 1 and savefig is True:
                     # print(g.filter.fc.weight.data)
                     plt.figure(figsize=(6, 5))
                     sns.heatmap(g.filter.fc.weight.data.cpu().numpy())

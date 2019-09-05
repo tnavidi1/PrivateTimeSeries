@@ -330,7 +330,7 @@ class Generator(nn.Module):
 
         self._objective_vals_setter(obj_raw, obj_priv)
 
-        tr_penalty = 10 * F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
 
         return obj_priv, grad, tr_penalty
         ################################################
