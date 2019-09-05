@@ -94,14 +94,20 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 y_out = clf(D_tilde)
                 loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
                                            ignore_index=-100, reduction='mean')
-                loss_util = g.util_loss(D, y_onehot, xi=xi)
+                loss_util_batch, util_grad, loss_tr_p = g.util_loss(D, y_onehot, xi=xi)
 
                 loss_priv.backward(retain_graph=True) # retain_graph=True
                 optimizer_clf.step()
+                # print(loss_util)
+                loss_util = loss_util_batch.mean()
+                # hyper_2 = 10 if tr_penalty > 1e-3 else 0
+                tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
 
-                g_loss = tradeoff_beta1 * loss_util - tradeoff_beta2 * loss_priv #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
-                g_loss.backward()
+                g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv + loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                g_loss.backward(retain_graph=True)
+                g_loss.backward(gradient=util_grad)
                 optimizer_g.step()
+                # raise NotImplementedError
 
                 _, y_max_idx = torch.max(y_out, dim=1)
                 correct = y_max_idx == y_labels

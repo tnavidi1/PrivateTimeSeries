@@ -284,8 +284,9 @@ class Generator(nn.Module):
         T = self.T
         # bLosses.grad_dl_dx(p, x_sol, D, Q, T)
         # bLosses.grad_loss_dx_dD_eps(dD, cat_noise, T) # p, x_sol, D, Q, dD, cat_noise, T
-        bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
-        raise NotImplementedError
+        avg_grad = bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
+        return avg_grad
+        # raise NotImplementedError
 
     def _check_values(self, a, b):
         raise NotImplementedError(a, b)
@@ -319,16 +320,23 @@ class Generator(nn.Module):
                                                        [d_Xd, d_Xd_priv, x_sol_raw, x_sol_priv]]
 
         cat_noise_ = torch.cat([z_noise, Y_onehot], dim=1)
-        self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
+        grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
 
         # raise NotImplementedError(x_sol_raw.shape, x_sol_priv.shape, d_Xd.shape, d_Xd_priv.shape)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
-        obj_priv = self.evaluate_cost_obj(x_sol_raw, D_=D_priv, p=p)
+        obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D, p=p)
+        obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
+
         # self._check_values(obj_priv, obj_raw)
         self._objective_vals_setter(obj_raw, obj_priv)
 
-        hinge_loss_mean = torch.clamp(obj_priv - obj_raw, min=0).mean()
+        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+
+        return obj_priv, grad, tr_penalty
+        ################################################
+        # hinge_loss_mean = torch.clamp(obj_priv - obj_raw, min=0).mean()
+
         # neg_tr_penalty = F.relu(-torch.symeig(self.filter.fc.weight)).sum(0)
         # eigvals, eig_vecs = torch.symeig(self.filter.fc.weight.data[:, :48])
 
@@ -337,11 +345,14 @@ class Generator(nn.Module):
         # min_diag_vals =  torch.min(diagvals)
         # neg_diag_penalty = F.relu_(-min_diag_vals)
         # m = nn.utils.spectral_norm(self.filter.fc.weight.data[:, :48])
-        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_1 = 1 if hinge_loss_mean > 0.5 else 0.5
-        hyper_2 = 10 if tr_penalty > 1e-3 else 0
-        # hyper_3 = 1 if neg_diag_penalty > 1e-3 else 0
-        return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty #+ 0.01* m #+ hyper_3 * neg_diag_penalty
+
+
+        ##########################################
+        # tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        # hyper_1 = 1 if hinge_loss_mean > 0.5 else 0.5
+        # hyper_2 = 10 if tr_penalty > 1e-3 else 0
+        # # hyper_3 = 1 if neg_diag_penalty > 1e-3 else 0
+        # return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty #+ 0.01* m #+ hyper_3 * neg_diag_penalty
 
 
 
