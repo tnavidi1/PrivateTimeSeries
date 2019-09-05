@@ -87,7 +87,8 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 optimizer_g.zero_grad()
                 optimizer_clf.zero_grad()
                 y_labels = bUtil.convert_binary_label(Y, 1500) # row vector
-                y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
+                # y_onehot = bUtil.convert_onehot(y_labels.unsqueeze(1), alphabet_size=2)
+                y_onehot = bUtil.convert_onehot_soft(y_labels.unsqueeze(1), alphabet_size=2)
                 D_tilde, z_noise = g.forward(D, y_onehot)
 
                 y_out = clf(D_tilde)
@@ -166,7 +167,8 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                             is_best=is_best,
                                             checkpoint=dir_folder, filename='iter_%04d.pth.tar' % j)
 
-                    print(batch_j_obj_raw, batch_j_obj_priv)
+                    print(batch_j_obj_raw.data, batch_j_obj_priv.data)
+                    print(batch_j_obj_raw.data.t()-batch_j_obj_priv.data.t())
                     res_json_path = os.path.join(dir_folder, "metrics_val_best_weights_%04d.json"%j)
                     # val_acc = float(correct_cnt) / tot_cnt
                     bUtil.save_dict_to_json(val_metrics, res_json_path)
@@ -218,7 +220,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 
                     #############################
                     plt.figure(figsize=(6.5,5))
-                    s = k - 1001 if k > 1001 else 0
+                    s = k - 1500 if k > 1500 else 0
                     # s = 50
                     t = k
                     plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')

@@ -473,6 +473,8 @@ def _convex_formulation_w_GAMMA_d_conic(p, GAMMA, d, epsilon, y_onehot, Q, G, h,
 
 
 ##############################
+##############################
+##############################
 # @since 2019/09/01
 def _single_d_cvx_(p, d, Q, G, h, A, b, T=24, sol_opt=cp.SCS, verbose=0):
     if d.shape == (T,):
@@ -510,6 +512,49 @@ def forward_D_batch(Qs, Gs, hs, As, bs, D, T, p=None, cp_sol = cp.SCS, n_jobs = 
     # return pool.starmap(forward_single_d_cvx_wrapper, args)
     with mp.Pool(processes=n_jobs) as pool:
         proc_results = [pool.apply_async(forward_single_d_cvx_wrapper,
+                                         args=(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose))\
+                                        for i in range(batch_size)]
+        res_chunk = [r.get() for r in proc_results]
+    return res_chunk
+
+
+#######################################
+# use conic auto diff
+# @since 09/03/2018
+#######################################
+def _single_d_conic_(p, d, Q, G, h, A, b, T=24, sol_opt=cp.SCS, verbose=0):
+    if d.shape == (T,):
+        d = np.expand_dims(d, 1)
+
+    Diff_coef_ = np.concatenate([np.eye(T), -np.eye(T)], axis=1)
+
+    x_ = cp.Variable(3 * T)
+    obj = cp.Minimize(0.5 * cp.quad_form(x_, Q) + p.T * cp.pos(Diff_coef_ * x_[0:(2 * T), 0] + d))
+    ineqCon = G * x_ <= h
+    eqCon = A * x_ == b
+    cons = [ineqCon, eqCon]
+    prob = cp.Problem(obj, cons)
+    A_, b_, c_, cone_dims = scs_data_from_cvxpy_problem(prob, cp_SCS=sol_opt)
+
+    x, y, s, derivative, adjoint_derivative = diffcp_cprog.solve_and_derivative(
+        A_, b_, c_, cone_dims, eps=1e-5)
+
+    x_hat = x[:(3 * T)]
+    dx, dy, ds = derivative(A_, b_, c_, atol=1e-4, btol=1e-4)
+    dA, db, dc = adjoint_derivative(dx, np.zeros(y.size), np.zeros(s.size))
+    # the demand d was converted in the Ax=b format b = [0,.., d, 0,...]
+    return x_hat, db[T:2*(T)]
+
+def forward_single_d_conic_wrapper(p, d, Q, G, h, A, b, T, sol_opt=cp.SCS, verbose=0):
+    return _single_d_conic_(p, d, Q, G, h, A, b, T=T, sol_opt=sol_opt, verbose=verbose)
+
+def forward_conic_D_batch(Qs, Gs, hs, As, bs, D, T, p=None, cp_sol = cp.SCS, n_jobs = 1, verbose=False):
+
+    if n_jobs == -1:
+        n_jobs = mp.cpu_count()
+    batch_size = D.shape[0]
+    with mp.Pool(processes=n_jobs) as pool:
+        proc_results = [pool.apply_async(forward_single_d_conic_wrapper,
                                          args=(p, D[i], Qs[i], Gs[i], hs[i], As[i], bs[i], T, cp_sol, verbose))\
                                         for i in range(batch_size)]
         res_chunk = [r.get() for r in proc_results]

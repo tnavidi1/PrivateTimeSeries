@@ -238,15 +238,13 @@ class Generator(nn.Module):
     def solve_convex_forumation(self, p, D, Q, G, h, A, b, Y_onehot=None, n_job=10):
         batch_size = D.shape[0]
         D_ = D
-        if isinstance(Y_onehot, torch.Tensor):
-            # don't do this due to the randomness in forward function
-            D_, z_noise = self.forward(D, Y_onehot)
-            # self.cached_noise = z_noise
-            # self.cached_D_priv = D_
-        elif Y_onehot is None:
-            D_ = D
-        else:
-            raise NotImplementedError("Y_onehot:\n {} \n is not supportted".format(Y_onehot))
+        # if isinstance(Y_onehot, torch.Tensor):
+        #     # don't do this due to the randomness in forward function
+        #     D_, z_noise = self.forward(D, Y_onehot)
+        # elif Y_onehot is None:
+        #     D_ = D  # assign input D to D_; for example D is privatized demand
+        # else:
+        #     raise NotImplementedError("Y_onehot:\n {} \n is not supportted".format(Y_onehot))
 
         def __expand_param_list(x):
             return [ut.to_np(x) for i in range(batch_size)]
@@ -254,20 +252,40 @@ class Generator(nn.Module):
         Qs, Gs, hs, As, bs = list(map(__expand_param_list, [Q, G, h, A, b])) # to numpy
         p = ut.to_np(p)
         D_detached = ut.to_np(D_.detach())
-        # this call numpy data
-        res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
-        x_sols = bUtil._convert_to_np_arr(res, 1)
-        objs = bUtil._convert_to_np_scalars(res, 0)
+        ### this call numpy data,
+        ### this call cvx solver
+        # res = OptMini_cvx.forward_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
+        # x_sols = bUtil._convert_to_np_arr(res, 1)
+        # objs = bUtil._convert_to_np_scalars(res, 0)
 
-        return objs, x_sols
+        ### this call conic auto projection
+        res = OptMini_cvx.forward_conic_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
+
+        x_sols = bUtil._convert_to_np_arr(res, 0)
+        diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        return diff_D, x_sols
 
     def evaluate_cost_obj(self, x_sols, D_, p=None):
         # D_ = self.cached_D_priv
         # D_ is a privatized demand
+        """
+        inputs has torch.tensor format
+        :param x_sols:
+        :param D_:
+        :param p:
+        :return:
+        """
         Q = self.Q
         T = self.T
         return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
 
+    def evaluate_cost_grad(self, x_sol, D, p=None, dD=None, cat_noise=None):
+        Q = self.Q
+        T = self.T
+        # bLosses.grad_dl_dx(p, x_sol, D, Q, T)
+        # bLosses.grad_loss_dx_dD_eps(dD, cat_noise, T) # p, x_sol, D, Q, dD, cat_noise, T
+        bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
+        raise NotImplementedError
 
     def _check_values(self, a, b):
         raise NotImplementedError(a, b)
@@ -285,14 +303,25 @@ class Generator(nn.Module):
 
         D_priv, z_noise = self.forward(D, Y_onehot)
 
-        obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
-        obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
-
+        # obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
+        # obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
+        #
         # convert obj_raw, obj_priv as tensor
-        [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
-                                                      [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
+        # [obj_raw, obj_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
+        #                                               [obj_raw, obj_priv, x_sol_raw, x_sol_priv]]
 
+        d_Xd, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None,
+                                                          n_job=self.n_job)
+        d_Xd_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None,
+                                                            n_job=self.n_job)
 
+        [d_Xd, d_Xd_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
+                                                       [d_Xd, d_Xd_priv, x_sol_raw, x_sol_priv]]
+
+        cat_noise_ = torch.cat([z_noise, Y_onehot], dim=1)
+        self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
+
+        # raise NotImplementedError(x_sol_raw.shape, x_sol_priv.shape, d_Xd.shape, d_Xd_priv.shape)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D_priv, p=p)
         obj_priv = self.evaluate_cost_obj(x_sol_raw, D_=D_priv, p=p)
@@ -309,7 +338,7 @@ class Generator(nn.Module):
         # neg_diag_penalty = F.relu_(-min_diag_vals)
         # m = nn.utils.spectral_norm(self.filter.fc.weight.data[:, :48])
         tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
-        hyper_1 = 0.1 if hinge_loss_mean > 0.5 else 0.01
+        hyper_1 = 1 if hinge_loss_mean > 0.5 else 0.5
         hyper_2 = 10 if tr_penalty > 1e-3 else 0
         # hyper_3 = 1 if neg_diag_penalty > 1e-3 else 0
         return hyper_1 * F.mse_loss(obj_priv, obj_raw) + hinge_loss_mean + hyper_2 * tr_penalty #+ 0.01* m #+ hyper_3 * neg_diag_penalty
