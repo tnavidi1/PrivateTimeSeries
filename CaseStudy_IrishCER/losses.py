@@ -104,9 +104,9 @@ def grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T):
     b_dldx = grad_dl_dx(p, x_sol, D, Q, T)
     b_dxdD = grad_dx_dD_eps(dD, cat_noise, T)
 
-    b_grad = b_dldx.unsqueeze(2).expand((bsz, T, cat_nz_dim))*(b_dxdD)
+    b_grad = b_dldx.unsqueeze(2).expand((bsz, T, cat_nz_dim)) * (b_dxdD)
     max_clip = 1.5
-    b_grad.clamp_(-max_clip, max_clip)
+    # b_grad.clamp_(-max_clip, max_clip)
     # print(b_grad.shape)
     avg_grad = b_grad.sum(0) / bsz
     avg_grad.clamp_(-max_clip, max_clip)

@@ -316,8 +316,8 @@ class Generator(nn.Module):
         d_Xd_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None,
                                                             n_job=self.n_job)
 
-        [d_Xd, d_Xd_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
-                                                       [d_Xd, d_Xd_priv, x_sol_raw, x_sol_priv]]
+        [d_Xd_priv, x_sol_raw, x_sol_priv] = [torch.from_numpy(x).to(torch.float) for x in \
+                                                       [d_Xd_priv, x_sol_raw, x_sol_priv]]
 
         cat_noise_ = torch.cat([z_noise, Y_onehot], dim=1)
         grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
@@ -328,10 +328,9 @@ class Generator(nn.Module):
         obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D, p=p)
         obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
 
-        # self._check_values(obj_priv, obj_raw)
         self._objective_vals_setter(obj_raw, obj_priv)
 
-        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        tr_penalty = 10 * F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
 
         return obj_priv, grad, tr_penalty
         ################################################

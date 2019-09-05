@@ -46,11 +46,12 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
     # init price
 
     _default_horizon_ = 48
-    torch.manual_seed(2)
+    torch.manual_seed(args.run)
+
     # price = torch.rand((_default_horizon_, 1))  # price is a column vector
     price = bUtil.create_price()
     Q, q, G, h, A, b, T, price = bUtil._form_QP_params(params, p=price)
-    # controller = OptPrivModel(Q, q, G, h, A, b, T=T)
+
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
                        T=_default_horizon_, p=price,
                        device=None, n_job=n_job)
@@ -101,11 +102,12 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 # print(loss_util)
                 loss_util = loss_util_batch.mean()
                 # hyper_2 = 10 if tr_penalty > 1e-3 else 0
-                tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
+                # tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
 
-                g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv + loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 g_loss.backward(retain_graph=True)
-                g_loss.backward(gradient=util_grad)
+                # raise NotImplementedError(g.filter.fc.weight.grad.shape)
+                g_loss.backward(gradient=(util_grad))
                 optimizer_g.step()
                 # raise NotImplementedError
 
@@ -143,11 +145,11 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                                "prop2": float(label_cnt2) /  tot_cnt,
                                "tr": trace_track.item()}
 
-                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}'.format(args.save_dir,
+                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(args.save_dir,
                                                                                     args.param_file,
                                                                                     xi,
                                                                                     tradeoff_beta1,
-                                                                                    tradeoff_beta2)
+                                                                                    tradeoff_beta2, args.run)
 
                 if not os.path.exists(dir_folder):
                     os.mkdir(dir_folder)
@@ -159,7 +161,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 acc_avg.update(val_acc)
                 is_best = acc_avg() <= best_val_acc
 
-                if j % iter_save == 0 and j > 99:
+                if j % iter_save == 0 :
 
                     bUtil.save_checkpoint({'epoch': k + 1,
                                            'g_state_dict': g.state_dict(),
@@ -281,6 +283,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
     parser.add_argument('--save_dir', default='experiments/models_logs', help="Directory of models logs")
     parser.add_argument('--param_file', default="param_set_01", )
+    parser.add_argument('--run', default=1, type=int)
     args = parser.parse_args()
     json_path = os.path.join(args.model_dir, args.param_file+'.json')
     assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
