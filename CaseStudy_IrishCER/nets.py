@@ -329,8 +329,8 @@ class Generator(nn.Module):
         obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
 
         self._objective_vals_setter(obj_raw, obj_priv)
-
-        tr_penalty = F.relu_(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        print(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi)
+        tr_penalty = F.mse_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi, torch.Tensor([0]))
 
         return obj_priv, grad, tr_penalty
         ################################################

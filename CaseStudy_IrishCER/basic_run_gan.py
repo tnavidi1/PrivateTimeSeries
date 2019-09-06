@@ -103,7 +103,7 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
                 loss_util = loss_util_batch.mean()
                 # hyper_2 = 10 if tr_penalty > 1e-3 else 0
                 # tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
-
+                # loss_tr_p
                 g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 # g_loss.backward(retain_graph=True)
                 g_loss.backward()
