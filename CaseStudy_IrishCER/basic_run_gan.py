@@ -295,7 +295,8 @@ def train_clf(dataloader, model_clf, model_g, optimizer_clf):
 
         loss_priv.backward()
         optimizer_clf.step()
-        print("retrian clf loss: {:.4f}".format(loss_priv))
+        if k % 20 == 0:
+            print("retrian clf loss: {:.4f}".format(loss_priv))
 
     model_g.train(True)
 

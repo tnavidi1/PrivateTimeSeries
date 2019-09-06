@@ -1,6 +1,6 @@
 {
     "learning_rate": 1e-3,
-    "batch_size": 32,
+    "batch_size": 64,
     "iter_max": 902,
     "iter_save": 50,
     "num_workers": 10,
