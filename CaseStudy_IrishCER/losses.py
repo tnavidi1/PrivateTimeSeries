@@ -91,7 +91,7 @@ def grad_dx_dD_eps(dD, concat_noise, T):
     # ==> 48 x 50 matrix
     concat_noise = concat_noise.unsqueeze(1).expand((bsz, T, cat_nz))
 
-    batch_grad_dx_dD_eps = 1/T * (batched_mat_dD / concat_noise)
+    batch_grad_dx_dD_eps =  (batched_mat_dD / concat_noise) * 1/ ( cat_nz)
     return batch_grad_dx_dD_eps
     # avg_grad = batch_grad_dx_dD_eps.sum(0) / bsz
     # max_clip = 1
@@ -109,5 +109,8 @@ def grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T):
     # b_grad.clamp_(-max_clip, max_clip)
     # print(b_grad.shape)
     avg_grad = b_grad.sum(0) / bsz
-    avg_grad.clamp_(-max_clip, max_clip)
+    avg_grad = avg_grad / torch.norm(avg_grad, p="fro")
+    # avg_grad.clamp_(-max_clip, max_clip)
+    # print(avg_grad)
+    # raise NotImplementedError(avg_grad)
     return avg_grad
