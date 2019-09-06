@@ -15,8 +15,10 @@ import basic_util as bUtil
 
 # print(torch.__version__)
 
-data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
-data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
+name_median = ('income', 4) # ('floor', 1500)
+
+data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr=name_median[0])
+data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/%s'%name_median[0])
 dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=64)
 
 
@@ -46,10 +48,13 @@ def run_raw_classification(dataloader, lr=1e-3, iter_max=10):
         with tqdm(dataloader) as pbar:
             for X, Y in pbar:
                 # print(X, Y)
+
+                X = F.normalize(X, p=1, dim=1)
+
                 optimizer_clf.zero_grad()
                 y_out= clf(X)
                 # y_labels = convert_binary_label(Y-1)
-                y_labels = bUtil.convert_binary_label(Y, 1500)
+                y_labels = bUtil.convert_binary_label(Y, name_median[1])
                 # y_labels = (Y-1).long().squeeze()
                 loss = F.cross_entropy(y_out, y_labels, weight=None,
                                        ignore_index=-100, reduction='mean')
@@ -81,4 +86,4 @@ def run_raw_classification(dataloader, lr=1e-3, iter_max=10):
                 #                  acc='{:.3e}'.format(float(correct_cnt)/tot_cnt))
 
 
-run_raw_classification(dataloader_dict['train'], lr=2e-4, iter_max=400)
+run_raw_classification(dataloader_dict['train'], lr=5e-4, iter_max=500)

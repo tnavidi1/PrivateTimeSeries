@@ -40,7 +40,7 @@ def _extract_filter_weight(x):
 
 
 
-def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
+def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
                 tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1, n_job=5):
     ## multiple iterations
     # init price
@@ -275,6 +275,12 @@ def run_battery(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, 
 #                 lr=1e-3, xi=xi, tradeoff_beta1=1, tradeoff_beta2=1, savefig=True, verbose=1)
 
 
+def run_clf_train():
+    raise NotImplementedError
+
+
+
+
 
 if __name__ == '__main__':
 
@@ -296,7 +302,7 @@ if __name__ == '__main__':
         os.mkdir(args.save_dir)
         print("create a folder")
 
-    run_battery(dataloader_dict['train'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
+    run_battery_train(dataloader_dict['train'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
                 lr=params.learning_rate, xi=params.xi,
                 tradeoff_beta1=params.tradeoff_beta1,
                 tradeoff_beta2=params.tradeoff_beta2,
