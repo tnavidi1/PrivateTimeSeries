@@ -31,7 +31,7 @@ torch.set_printoptions(profile="full", linewidth=400)
 
 data_tt_dict = processData.get_train_test_split(dir_root='../Data_IrishCER', attr='floor')
 data_tth_dict = processData.get_train_hold_split(data_tt_dict, 0.9, '../Data_IrishCER/floor')
-dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=32)
+dataloader_dict = processData.get_loaders_tth(data_tth_dict, bsz=64)
 
 
 
@@ -40,7 +40,7 @@ def _extract_filter_weight(x):
 
 
 
-def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
+def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
                 tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1, n_job=5):
     ## multiple iterations
     # init price
@@ -58,7 +58,7 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
 
     clf = nets.Classifier(z_dim=48, y_dim=2)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
-    optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr)
+    optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr, betas=(0.6, 0.999))
     # raise NotImplementedError(*g.filter.parameters())
     # batchs_length =len(dataloader)
     losses_gen = []
@@ -81,6 +81,7 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
             # raise NotImplementedError(len(dataloader))
             for k, (D, Y) in enumerate(dataloader):
                 #
+                D = F.normalize(D, p=1, dim=1)
                 bsz = D.shape[0]
                 j += 1
                 k = j
@@ -95,7 +96,7 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
                 y_out = clf(D_tilde)
                 loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
                                            ignore_index=-100, reduction='mean')
-                loss_util_batch, util_grad, loss_tr_p = g.util_loss(D, y_onehot, xi=xi)
+                loss_util_batch, util_grad, loss_tr_p = g.util_loss(D, D_tilde, z_noise, y_onehot, xi=xi)
 
                 loss_priv.backward(retain_graph=True) # retain_graph=True
                 optimizer_clf.step()
@@ -163,6 +164,8 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
                 val_acc = float(correct_cnt) / tot_cnt
                 acc_avg.update(val_acc)
                 is_best = acc_avg() <= best_val_acc
+                if j % 50 == 0:
+                    train_clf(dataloader_test, model_clf=clf, model_g=g, optimizer_clf=optimizer_clf)
 
                 if j % iter_save == 1 :
 
@@ -265,6 +268,7 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
                     plt.savefig('%s/demand_visual_iter_%d.png'%(dir_folder,k))
                     plt.close('all')
 
+
             # last_json_path = os.path.join(dir_folder, "metrics_val_last_weights.json")
             # bUtil.save_dict_to_json(val_metrics, last_json_path)
 
@@ -275,8 +279,27 @@ def run_battery_train(dataloader, params=None, iter_max=5001, iter_save=100, lr=
 #                 lr=1e-3, xi=xi, tradeoff_beta1=1, tradeoff_beta2=1, savefig=True, verbose=1)
 
 
-def run_clf_train():
-    raise NotImplementedError
+def train_clf(dataloader, model_clf, model_g, optimizer_clf):
+    for k, (D, Y) in enumerate(dataloader):
+        # print(D, Y)
+        model_g.train(False)
+        D = F.normalize(D, p=1, dim=1)
+        optimizer_clf.zero_grad()
+        y_labels = bUtil.convert_binary_label(Y, 1500)  # row vector
+        y_onehot = bUtil.convert_onehot_soft(y_labels.unsqueeze(1), alphabet_size=2)
+        D_tilde, z_noise = model_g.forward(D, y_onehot)
+
+        y_out = model_clf(D_tilde)
+        loss_priv = F.cross_entropy(y_out, y_labels, weight=None,
+                                    ignore_index=-100, reduction='mean')
+
+        loss_priv.backward()
+        optimizer_clf.step()
+        print("retrian clf loss: {:.4f}".format(loss_priv))
+
+    model_g.train(True)
+
+    # raise NotImplementedError
 
 
 
@@ -302,7 +325,7 @@ if __name__ == '__main__':
         os.mkdir(args.save_dir)
         print("create a folder")
 
-    run_battery_train(dataloader_dict['train'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
+    run_battery_train(dataloader_dict['train'], dataloader_dict['test'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
                 lr=params.learning_rate, xi=params.xi,
                 tradeoff_beta1=params.tradeoff_beta1,
                 tradeoff_beta2=params.tradeoff_beta2,

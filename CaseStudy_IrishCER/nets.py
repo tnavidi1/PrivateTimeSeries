@@ -298,11 +298,11 @@ class Generator(nn.Module):
     def _objective_vals_getter(self):
         return self.obj_raw, self.obj_priv
 
-    def util_loss(self, D, Y_onehot, p=None, xi=0.01):
+    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01):
         if p is None:
             p = self.p
 
-        D_priv, z_noise = self.forward(D, Y_onehot)
+        # D_priv, z_noise = self.forward(D, Y_onehot)
 
         # obj_raw, x_sol_raw = self.solve_convex_forumation(p, D, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
         # obj_priv, x_sol_priv = self.solve_convex_forumation(p, D_priv, self.Q, self.G, self.h, self.A, self.b, Y_onehot=None, n_job=self.n_job)
@@ -330,7 +330,7 @@ class Generator(nn.Module):
 
         self._objective_vals_setter(obj_raw, obj_priv)
         size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
-        tr_penalty = F.mse_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi, torch.zeros(size=size_of_tr))
+        tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi, torch.zeros(size=size_of_tr))
 
         return obj_priv, grad, tr_penalty
         ################################################
