@@ -41,15 +41,24 @@ def _extract_filter_weight(x):
 
 
 def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
-                tradeoff_beta1=0.5, tradeoff_beta2=1, savefig=False, verbose=1, n_job=5):
+                tradeoff_beta1=0.5, tradeoff_beta2=1, p_opt = 'TOU', save_folder=None, savefig=False, verbose=1, n_job=5):
     ## multiple iterations
     # init price
 
     _default_horizon_ = 48
     torch.manual_seed(args.run)
 
-    # price = torch.rand((_default_horizon_, 1))  # price is a column vector
-    price = bUtil.create_price()
+    price=None
+    if p_opt == 'TOU':
+        price = bUtil.create_price()
+    elif p_opt == 'LMP':
+        price = bUtil.create_LMP('../Data_LMP/8-18-2019_8days_Menlo_LMPs.csv')
+    else:
+        price = torch.rand((_default_horizon_, 1))  # price is a column vector
+
+    # print(price)
+    # raise NotImplementedError()
+
     Q, q, G, h, A, b, T, price = bUtil._form_QP_params(params, p=price)
 
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h = h, A=A, b=b,
@@ -105,7 +114,10 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 # hyper_2 = 10 if tr_penalty > 1e-3 else 0
                 # tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
                 # loss_tr_p
-                g_loss = tradeoff_beta1 * loss_tr_p - tradeoff_beta2 * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                tradeoff_beta1_ = tradeoff_beta1 if loss_tr_p > 0.01 else 0.5
+                r_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4)
+                print(r_)
+                g_loss = tradeoff_beta1_ * loss_tr_p - tradeoff_beta2 * r_ * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 # g_loss.backward(retain_graph=True)
                 g_loss.backward()
                 g.filter.fc.weight.data -= lr * util_grad
@@ -137,7 +149,8 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                                  prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
                                  tr='{:.2e}'.format(trace_track),
-                                 gap = '{:.2e}'.format(gap_obj.item())
+                                 tr_gap='{:.2e}'.format(loss_tr_p),
+                                 obj_gap = '{:.2e}'.format(gap_obj.item())
                                  )
                 pbar.update(1)
 
@@ -149,7 +162,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                                "prop2": float(label_cnt2) /  tot_cnt,
                                "tr": trace_track.item()}
 
-                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(args.save_dir,
+                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(save_folder,
                                                                                     args.param_file,
                                                                                     xi,
                                                                                     tradeoff_beta1,
@@ -164,7 +177,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 val_acc = float(correct_cnt) / tot_cnt
                 acc_avg.update(val_acc)
                 is_best = acc_avg() <= best_val_acc
-                if j % 50 == 0:
+                if j % 100 == 1:
                     train_clf(dataloader_test, model_clf=clf, model_g=g, optimizer_clf=optimizer_clf)
 
                 if j % iter_save == 1 :
@@ -205,16 +218,20 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                     # print(out_purtbation)
                     ind_ = np.random.randint(low=0, high=bsz, size=4)
                     fig, ax =plt.subplots(2, 2, figsize=(9, 5))
-                    max_axis_up = max(np.max(concat_noise[ind_]), np.max(out_purtbation[ind_].transpose()))
-                    min_axis_up = min(np.min(concat_noise[ind_]), np.min(out_purtbation[ind_].transpose()))
+                    max_axis_up_l = max(np.max(concat_noise[ind_]), np.max(out_purtbation[ind_].transpose()))
+                    min_axis_up_l = min(np.min(concat_noise[ind_]), np.min(out_purtbation[ind_].transpose()))
+                    max_axis_up_r = np.max(out_purtbation[ind_].transpose())
+                    min_axis_up_r = np.min(out_purtbation[ind_].transpose())
+                    # print(max_axis_up_r, min_axis_up_r)
+                    # raise NotImplementedError
 
                     ax[0, 0].plot(concat_noise[ind_].transpose())
                     ax[0, 0].set_title("noise")
 
                     ax[0, 1].plot(out_purtbation[ind_].transpose())
                     ax[0, 1].set_title("out noise")
-                    ax[0, 0].set_ylim(min_axis_up, max_axis_up)
-                    ax[0, 1].set_ylim(min_axis_up, max_axis_up)
+                    ax[0, 0].set_ylim(min_axis_up_l, max_axis_up_l)
+                    ax[0, 1].set_ylim(min_axis_up_r, max_axis_up_r)
 
                     max_axis_low = max(np.max(D[ind_].t().cpu().numpy())*1.05, np.max(D_tilde[ind_].detach().cpu().numpy()) * 1.05)
                     min_axis_low = min(np.min(D[ind_].t().cpu().numpy()), np.min(D_tilde[ind_].detach().cpu().numpy()))
@@ -295,7 +312,7 @@ def train_clf(dataloader, model_clf, model_g, optimizer_clf):
 
         loss_priv.backward()
         optimizer_clf.step()
-        if k % 20 == 0:
+        if k % 50 == 0:
             print("retrian clf loss: {:.4f}".format(loss_priv))
 
     model_g.train(True)
@@ -315,19 +332,22 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
     parser.add_argument('--save_dir', default='experiments/models_logs', help="Directory of models logs")
-    parser.add_argument('--param_file', default="param_set_01", )
+    parser.add_argument('--param_file', default="param_set_01")
+    parser.add_argument('--p_opt', default='LMP', help='price option (TOU or LMP)')
     parser.add_argument('--run', default=1, type=int)
     args = parser.parse_args()
     json_path = os.path.join(args.model_dir, args.param_file+'.json')
     assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
     params = bUtil.Params(json_path)
     # print(*params.dict)
-    if not os.path.exists(args.save_dir):
-        os.mkdir(args.save_dir)
+    save_folder = args.save_dir + '_' + args.p_opt
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
         print("create a folder")
 
     run_battery_train(dataloader_dict['train'], dataloader_dict['test'], params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
                 lr=params.learning_rate, xi=params.xi,
                 tradeoff_beta1=params.tradeoff_beta1,
                 tradeoff_beta2=params.tradeoff_beta2,
+                p_opt=args.p_opt, save_folder=save_folder,
                 savefig=True, verbose=1, n_job=params.num_workers)

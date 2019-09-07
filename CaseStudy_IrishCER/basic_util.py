@@ -43,7 +43,26 @@ def create_price(steps_perHr=2):
     p = torch.from_numpy(price_shape).to(torch.float).reshape(-1, 1)
     return p
 
+# @create & load the LMP
+def create_LMP(filename, granular=24, steps_perHr=2):
+    lmp = np.genfromtxt(filename)
+    # print(lmp.shape) # 192
+    n = int(len(lmp) / granular)
+    lmp = lmp.reshape(n, granular)
+    # print(lmp)
+    # lmp_ = np.concatenate((lmp[0], lmp[1]), axis=1).reshape(-1)
+    T = int(steps_perHr * granular)
+    if T == 48:
+        lmp = np.concatenate((lmp[0][:, np.newaxis], lmp[1][:,np.newaxis]), axis=1).reshape(-1)
+    elif T == 24:
+        lmp = lmp[0]
+    else:
+        raise NotImplementedError("---- time steps T={:d}----".format(T))
+    # print(lmp_)
+    p = torch.from_numpy(lmp).to(torch.float).reshape(-1, 1)
+    return p
 
+# ===========================
 
 def _form_QP_params(param_set, p=None):
     """

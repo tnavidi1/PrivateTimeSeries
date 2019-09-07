@@ -59,6 +59,14 @@ def objective_task_loss(price, x_ctrl, D, Q, T):
     return 0.5 * cost_quad_xQx + cost_lin_qx
 
 
+def objective_task_loss_linear(price, x_ctrl, D, T):
+    batch_size = D.shape[0]
+    price = price.t().unsqueeze(0).repeat(batch_size, 1, 1)
+    x_in = x_ctrl[:, :T]
+    x_out = x_ctrl[:, T:(2 * T)]
+    cost_lin_qx = torch_bLin(x_in - x_out, D, price)
+    return cost_lin_qx
+
 def grad_dl_dx(price, x_ctrl, D, Q, T):
     """
 
@@ -109,7 +117,7 @@ def grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T):
     # b_grad.clamp_(-max_clip, max_clip)
     # print(b_grad.shape)
     avg_grad = b_grad.sum(0) / bsz
-    avg_grad = avg_grad / torch.norm(avg_grad, p="fro")
+    avg_grad = avg_grad / torch.max(torch.norm(avg_grad, p="fro"), torch.tensor(1e-8, dtype=torch.float))
     # avg_grad.clamp_(-max_clip, max_clip)
     # print(avg_grad)
     # raise NotImplementedError(avg_grad)

@@ -32,10 +32,10 @@ class Classifier(nn.Module):
         self.z_dim = z_dim
         self.y_dim = y_dim
         self.net = nn.Sequential(
-            nn.Linear(z_dim, 64),
+            nn.Linear(z_dim, 52),
             nn.ReLU(),
             # nn.ELU(),
-            nn.Linear(64, 24),
+            nn.Linear(52, 24),
             nn.ReLU(),
             # nn.ELU(),
             nn.Linear(24, y_dim)
@@ -275,9 +275,10 @@ class Generator(nn.Module):
         :param p:
         :return:
         """
-        Q = self.Q
+        # Q = self.Q
         T = self.T
-        return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
+        # return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
+        return bLosses.objective_task_loss_linear(p, x_sols, D_, T)
 
     def evaluate_cost_grad(self, x_sol, D, p=None, dD=None, cat_noise=None):
         Q = self.Q
@@ -330,7 +331,8 @@ class Generator(nn.Module):
 
         self._objective_vals_setter(obj_raw, obj_priv)
         size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
-        tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi, torch.zeros(size=size_of_tr))
+        tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
+                                      torch.zeros(size=size_of_tr))
 
         return obj_priv, grad, tr_penalty
         ################################################
