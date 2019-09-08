@@ -269,3 +269,30 @@ def load_checkpoint(checkpoint, model, optimizer=None):
 
     return checkpoint
 
+def load_checkopint_gan(checkpoint, model_g, model_clf, optimizer_g=None, optimizer_clf=None):
+    """
+    Args:
+        checkpoint: (string) filename which needs to be loaded
+        model: (torch.nn.Module) model for which the parameters are loaded
+        optimizer: (torch.optim) optional: resume optimizer from checkpoint
+
+    :param checkpoint:
+    :param model_g: (nn.Model) generator
+    :param model_clf: (nn.Model) classifier
+    :param optimizer_g:
+    :param optimizer_clf:
+    :return:
+    """
+
+    if not os.path.exists(checkpoint):
+        raise ("File doesn't exist {}".format(checkpoint))
+    checkpoint = torch.load(checkpoint)
+    model_g.load_state_dict(checkpoint['g_state_dict'])
+    model_clf.load_state_dict(checkpoint['clf_state_dict'])
+
+    if not optimizer_g or not optimizer_clf:
+        optimizer_g.load_state_dict(checkpoint['g_optim_dict'])
+        optimizer_clf.load_state_dict(checkpoint['clf_optim_dict'])
+
+    return checkpoint
+

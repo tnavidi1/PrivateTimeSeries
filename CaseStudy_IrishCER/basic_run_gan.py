@@ -41,7 +41,8 @@ def _extract_filter_weight(x):
 
 
 def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=5001, iter_save=100, lr=1e-3, xi=0.5,
-                tradeoff_beta1=0.5, tradeoff_beta2=1, p_opt = 'TOU', save_folder=None, savefig=False, verbose=1, n_job=5):
+                tradeoff_beta1=0.5, tradeoff_beta2=1, p_opt = 'TOU', save_folder=None, reload_step=0,
+                      savefig=False, verbose=1, n_job=5):
     ## multiple iterations
     # init price
 
@@ -70,6 +71,22 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr, betas=(0.6, 0.999))
     # raise NotImplementedError(*g.filter.parameters())
     # batchs_length =len(dataloader)
+
+
+    #### define the folder ####
+    dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(save_folder,
+                                                                                   args.param_file,
+                                                                                   xi,
+                                                                                   tradeoff_beta1,
+                                                                                   tradeoff_beta2, args.run)
+
+
+    if reload_step > 0:
+        print("================= load pretrain step: {:d} =================".format(reload_step))
+        ckpt = os.path.join(dir_folder, "iter_%04d.pth.tar" % reload_step)
+        print(ckpt)
+        bUtil.load_checkopint_gan(ckpt, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
+
     losses_gen = []
     losses_adv = []
     # for j in range(ep):
@@ -114,16 +131,27 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 # hyper_2 = 10 if tr_penalty > 1e-3 else 0
                 # tradeoff_beta1 = 0 if loss_tr_p.item() < 1e-3 else tradeoff_beta1
                 # loss_tr_p
+                batch_D_tilde_rowsum = torch.norm(D_tilde, p=1, dim=1)
+                batch_D_rowsum = torch.ones(size=batch_D_tilde_rowsum.size())
+                row_sum_penalty = F.l1_loss(batch_D_tilde_rowsum, batch_D_rowsum)
+
                 tradeoff_beta1_ = tradeoff_beta1 if loss_tr_p > 0.01 else 0.5
-                r_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4)
-                print(r_)
-                g_loss = tradeoff_beta1_ * loss_tr_p - tradeoff_beta2 * r_ * loss_priv #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                r1_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4)
+                r2_ = np.clip(loss_tr_p.item()/row_sum_penalty.item(), 1e-3, 1e4)
+                # print(r1_)
+
+
+                # print(torch.norm(D_tilde, p=1, dim=1))
+                # print(torch.norm(D, p=1, dim=1))
+                # raise NotImplementedError(torch.norm(D_tilde, p=1, dim=1))
+                g_loss = tradeoff_beta1_ * loss_tr_p - tradeoff_beta2 * r1_ * loss_priv + r2_ * row_sum_penalty #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 # g_loss.backward(retain_graph=True)
                 g_loss.backward()
+                optimizer_g.step()
                 g.filter.fc.weight.data -= lr * util_grad
                 # raise NotImplementedError(g.filter.fc.weight.grad.shape)
                 # g_loss.backward(gradient=(util_grad))
-                optimizer_g.step()
+
                 # raise NotImplementedError
 
                 _, y_max_idx = torch.max(y_out, dim=1)
@@ -150,7 +178,8 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt),
                                  tr='{:.2e}'.format(trace_track),
                                  tr_gap='{:.2e}'.format(loss_tr_p),
-                                 obj_gap = '{:.2e}'.format(gap_obj.item())
+                                 obj_gap = '{:.2e}'.format(gap_obj.item()),
+                                 r_sum = '{:.2e}'.format(row_sum_penalty.item())
                                  )
                 pbar.update(1)
 
@@ -162,12 +191,8 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                                "prop2": float(label_cnt2) /  tot_cnt,
                                "tr": trace_track.item()}
 
-                dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(save_folder,
-                                                                                    args.param_file,
-                                                                                    xi,
-                                                                                    tradeoff_beta1,
-                                                                                    tradeoff_beta2, args.run)
 
+                ## create a dir folder ##
                 if not os.path.exists(dir_folder):
                     os.mkdir(dir_folder)
 
@@ -335,6 +360,8 @@ if __name__ == '__main__':
     parser.add_argument('--param_file', default="param_set_01")
     parser.add_argument('--p_opt', default='LMP', help='price option (TOU or LMP)')
     parser.add_argument('--run', default=1, type=int)
+    parser.add_argument('--load_pretrain_step', default=0, type=int)
+
     args = parser.parse_args()
     json_path = os.path.join(args.model_dir, args.param_file+'.json')
     assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
@@ -349,5 +376,7 @@ if __name__ == '__main__':
                 lr=params.learning_rate, xi=params.xi,
                 tradeoff_beta1=params.tradeoff_beta1,
                 tradeoff_beta2=params.tradeoff_beta2,
-                p_opt=args.p_opt, save_folder=save_folder,
+                p_opt=args.p_opt,
+                save_folder=save_folder,
+                reload_step= args.load_pretrain_step,
                 savefig=True, verbose=1, n_job=params.num_workers)
