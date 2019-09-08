@@ -331,7 +331,11 @@ class Generator(nn.Module):
 
         self._objective_vals_setter(obj_raw, obj_priv)
         size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
-        tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
+        # raise NotImplementedError(size_of_tr, torch.zeros(size=size_of_tr))
+        # ------ huber loss ------
+        # tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
+        #                               torch.zeros(size=size_of_tr))
+        tr_penalty = F.l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
                                       torch.zeros(size=size_of_tr))
 
         return obj_priv, grad, tr_penalty

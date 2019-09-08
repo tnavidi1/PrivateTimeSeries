@@ -135,16 +135,16 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 batch_D_rowsum = torch.ones(size=batch_D_tilde_rowsum.size())
                 row_sum_penalty = F.l1_loss(batch_D_tilde_rowsum, batch_D_rowsum)
 
-                tradeoff_beta1_ = tradeoff_beta1 if loss_tr_p > 0.01 else 0.5
-                r1_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4)
-                r2_ = np.clip(loss_tr_p.item()/row_sum_penalty.item(), 1e-3, 1e4)
-                # print(r1_)
+                tradeoff_beta1_ = tradeoff_beta1 if loss_tr_p > 0.01 else 0.01
+                r1_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4) if loss_tr_p > 0.01 else 1
+                r2_ = np.clip(loss_tr_p.item()/row_sum_penalty.item(), 1e-3, 1e4) if row_sum_penalty.item() > 0.1 else 100
+                print(r1_, r2_)
 
 
                 # print(torch.norm(D_tilde, p=1, dim=1))
                 # print(torch.norm(D, p=1, dim=1))
                 # raise NotImplementedError(torch.norm(D_tilde, p=1, dim=1))
-                g_loss = tradeoff_beta1_ * loss_tr_p - tradeoff_beta2 * r1_ * loss_priv + r2_ * row_sum_penalty #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
+                g_loss = tradeoff_beta1_ * loss_tr_p - tradeoff_beta2 * r1_ * loss_priv + (1/r2_) * row_sum_penalty #+ loss_util #+ 0.1 * torch.norm(g.filter.fc.weight[:, 48:], p=1, dim=0).mean()
                 # g_loss.backward(retain_graph=True)
                 g_loss.backward()
                 optimizer_g.step()

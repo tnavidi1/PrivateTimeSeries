@@ -35,3 +35,5 @@ fig/filter_visual/*.png
 fig/demand_visual/
 fig/
 CaseStudy_IrishCER/discarded_notebook/
+CaseStudy_IrishCER/experiments/models_logs_LMP/
+
