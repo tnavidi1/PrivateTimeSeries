@@ -154,8 +154,10 @@ class CustomizedLinearFunction(torch.autograd.Function):
     def forward(ctx, input, weight, bias=None, mask=None):
         if mask is not None:
             # change weight to 0 where mask == 0
+            # print("forward mask : {}".format(mask.shape))
             weight = weight * mask
-        output = input.mm(weight.t())
+        # output = input.mm(weight.t())
+        output = input.mm(weight)
         if bias is not None:
             output += bias.unsqueeze(0).expand_as(output)
         ctx.save_for_backward(input, weight, bias, mask)
@@ -179,10 +181,15 @@ class CustomizedLinearFunction(torch.autograd.Function):
         if ctx.needs_input_grad[0]:
             grad_input = grad_output.mm(weight)
         if ctx.needs_input_grad[1]:
+            # print(grad_output, grad_output.shape)
+            # print("=="*20)
+            # print(input, input.shape)
+            # raise NotImplementedError
             grad_weight = grad_output.t().mm(input)
             if mask is not None:
                 # change grad_weight to 0 where mask == 0
-                grad_weight = grad_weight * mask
+                # raise NotImplementedError(grad_weight.shape, mask.shape)
+                grad_weight = grad_weight.t() * mask
         #if bias is not None and ctx.needs_input_grad[2]:
         if ctx.needs_input_grad[2]:
             grad_bias = grad_output.sum(0).squeeze(0)
@@ -208,8 +215,10 @@ class CustomizedLinear(nn.Module):
         self.output_features = mask.shape[1]
         if isinstance(mask, torch.Tensor):
             self.mask = mask.type(torch.float).t()
+            # self.mask = mask.type(torch.float)
         else:
             self.mask = torch.tensor(mask, dtype=torch.float).t()
+            # self.mask = torch.tensor(mask, dtype=torch.float)
 
         self.mask = nn.Parameter(self.mask, requires_grad=False)
 
@@ -221,6 +230,7 @@ class CustomizedLinear(nn.Module):
         # .register_buffer() to register buffers.
         # nn.Parameters require gradients by default.
         self.weight = nn.Parameter(torch.Tensor(self.output_features, self.input_features))
+        # self.weight = nn.Parameter(torch.Tensor(self.input_features, self.output_features))
 
         if bias:
             self.bias = nn.Parameter(torch.Tensor(self.output_features))
