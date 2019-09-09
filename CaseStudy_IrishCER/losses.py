@@ -107,6 +107,17 @@ def grad_dx_dD_eps(dD, concat_noise, T):
     # return avg_grad
 
 def grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T):
+    """
+    This function
+    :param p:
+    :param x_sol:
+    :param D:
+    :param Q:
+    :param dD:
+    :param cat_noise:
+    :param T:
+    :return:
+    """
     bsz = dD.shape[0]
     cat_nz_dim = cat_noise.shape[1]
     b_dldx = grad_dl_dx(p, x_sol, D, Q, T)
@@ -122,3 +133,36 @@ def grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T):
     # print(avg_grad)
     # raise NotImplementedError(avg_grad)
     return avg_grad
+
+
+def grad_dx_dD_eps_diag(dD, concat_noise, T):
+    bsz = dD.shape[0]
+    cat_nz = concat_noise.shape[1]
+    label_cat = cat_nz - T
+    noise_ = concat_noise[:, :T]
+    label_onehot = concat_noise[:, T:]
+    # print("noise shape {}, dD shape{}".format(noise_.shape, dD.shape))
+    d_diagGAMMA= dD / noise_
+    # raise NotImplementedError(dGAMMA.shape, label_onehot.shape)
+    batched_dD = dD.unsqueeze(2).expand((bsz, T, label_cat))
+    batched_dD = batched_dD / label_onehot.unsqueeze(1)
+    d_diagGAMMA = torch.diag_embed(d_diagGAMMA)
+    batched_grad_dxdD_eps = torch.cat([d_diagGAMMA, batched_dD], dim=2)
+    # raise NotImplementedError(batched_dD, d_diagGAMMA[0], d_diagGAMMA.shape, batched_dD.shape, label_onehot.shape)
+    # raise NotImplementedError(batched_grad_dxdD_eps.shape)
+    return batched_grad_dxdD_eps
+
+def grad_dldxdD_diag(p, x_sol, D, Q, dD, cat_noise, T):
+    bsz = dD.shape[0]
+    cat_nz_dim = cat_noise.shape[1]
+    b_dldx = grad_dl_dx(p, x_sol, D, Q, T)
+    b_dxdD = grad_dx_dD_eps_diag(dD, cat_noise, T)
+
+    b_grad = b_dldx.unsqueeze(2).expand((bsz, T, cat_nz_dim)) * (b_dxdD)
+    # max_clip = 1.5
+    # b_grad.clamp_(-max_clip, max_clip)
+    # print(b_grad.shape)
+    avg_grad = b_grad.sum(0) / bsz
+    avg_grad = avg_grad / torch.max(torch.norm(avg_grad, p="fro"), torch.tensor(1e-8, dtype=torch.float))
+    return avg_grad
+

@@ -144,7 +144,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 r1_ = np.clip(loss_tr_p.item()/loss_priv.item(), 1e-3, 1e4) if loss_tr_p > 0.01 else 1
                 r2_ = np.clip(loss_tr_p.item()/row_sum_penalty.item(), 1e-3, 1e4) if row_sum_penalty.item() > 0.1 else 100
 
-                tradeoff_beta2_ = tradeoff_beta2 if loss_priv.item() > 0.001 else 100
+                tradeoff_beta2_ = tradeoff_beta2 if loss_priv.item() > 0.02 else 100
                 print(r1_, r2_)
 
                 # print(torch.norm(D_tilde, p=1, dim=1))

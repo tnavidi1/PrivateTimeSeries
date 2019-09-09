@@ -322,6 +322,7 @@ class Generator(nn.Module):
         self.n_job = n_job
 
         # create a linear filter # @since 2019/08/29 modify zero bias
+        self.has_mask = 1 if isinstance(mask, torch.Tensor) else 0
         self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=None, mask=mask, init_type="kaiming")  # setting noise dim is same as latent dim
         # Set prior as fixed parameter attached to module
         self.z_prior_m = Parameter(torch.zeros(1), requires_grad=False)
@@ -431,7 +432,14 @@ class Generator(nn.Module):
         # bLosses.grad_loss_dx_dD_eps(dD, cat_noise, T) # p, x_sol, D, Q, dD, cat_noise, T
         avg_grad = bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
         return avg_grad
-        # raise NotImplementedError
+
+    def evaluate_cost_grad_diag(self, x_sol, D, p=None, dD=None, cat_noise=None):
+        # print(cat_noise.shape)
+        Q = self.Q
+        T = self.T
+        # raise NotImplementedError(bLosses.grad_dldxdD_diag(p, x_sol, D, Q, dD, cat_noise, T))
+        return bLosses.grad_dldxdD_diag(p, x_sol, D, Q, dD, cat_noise, T)
+
 
     def _check_values(self, a, b):
         raise NotImplementedError(a, b)
@@ -465,7 +473,10 @@ class Generator(nn.Module):
                                                        [d_Xd_priv, x_sol_raw, x_sol_priv]]
 
         cat_noise_ = torch.cat([z_noise, Y_onehot], dim=1)
-        grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
+        if self.has_mask == 0:
+            grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
+        elif self.has_mask == 1:
+            grad = self.evaluate_cost_grad_diag(x_sol_priv, D, p, dD=d_Xd_priv, cat_noise=cat_noise_)
 
         # raise NotImplementedError(x_sol_raw.shape, x_sol_priv.shape, d_Xd.shape, d_Xd_priv.shape)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)
