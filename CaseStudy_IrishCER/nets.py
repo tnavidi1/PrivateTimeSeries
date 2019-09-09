@@ -88,11 +88,20 @@ class PosLinear(nn.Module):
     """
     __constants__ = ['bias']
 
-    def __init__(self, in_features, out_features, bias=True, init_type="kaiming"):
+    def __init__(self, in_features, out_features, bias=True, init_type="kaiming", mask=False):
         super(PosLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.weight = Parameter(torch.Tensor(out_features, in_features))
+
+        # if mask:
+        #     num_row_diff = out_features - in_features
+        #     self.mask_mat = torch.cat([
+        #                         torch.cat([torch.eye(in_features), torch.zeros((num_row_diff, in_features))], dim=0),
+        #                         torch.ones((out_features, num_row_diff))], dim=1)
+        #     self.weight = self.weights * self.mask_mat
+        #     self.handle = self.register_backward_hook(zero_grad)
+
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
         else:
@@ -127,16 +136,138 @@ class PosLinear(nn.Module):
 
 
 
+
+
+#################################
+
+#################################
+# Define custome autograd function for masked connection.
+
+class CustomizedLinearFunction(torch.autograd.Function):
+    """
+    autograd function which masks it's weights by 'mask'.
+    """
+
+    # Note that both forward and backward are @staticmethods
+    @staticmethod
+    # bias, mask is an optional argument
+    def forward(ctx, input, weight, bias=None, mask=None):
+        if mask is not None:
+            # change weight to 0 where mask == 0
+            weight = weight * mask
+        output = input.mm(weight.t())
+        if bias is not None:
+            output += bias.unsqueeze(0).expand_as(output)
+        ctx.save_for_backward(input, weight, bias, mask)
+        return output
+
+    # This function has only a single output, so it gets only one gradient
+    @staticmethod
+    def backward(ctx, grad_output):
+        # This is a pattern that is very convenient - at the top of backward
+        # unpack saved_tensors and initialize all gradients w.r.t. inputs to
+        # None. Thanks to the fact that additional trailing Nones are
+        # ignored, the return statement is simple even when the function has
+        # optional inputs.
+        input, weight, bias, mask = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = grad_mask = None
+
+        # These needs_input_grad checks are optional and there only to
+        # improve efficiency. If you want to make your code simpler, you can
+        # skip them. Returning gradients for inputs that don't require it is
+        # not an error.
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.mm(weight)
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().mm(input)
+            if mask is not None:
+                # change grad_weight to 0 where mask == 0
+                grad_weight = grad_weight * mask
+        #if bias is not None and ctx.needs_input_grad[2]:
+        if ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0).squeeze(0)
+
+        return grad_input, grad_weight, grad_bias, grad_mask
+
+
+class CustomizedLinear(nn.Module):
+    def __init__(self, mask, bias=True):
+        """
+        extended torch.nn module which mask connection.
+        Argumens
+        ------------------
+        mask [torch.tensor]:
+            the shape is (n_input_feature, n_output_feature).
+            the elements are 0 or 1 which declare un-connected or
+            connected.
+        bias [bool]:
+            flg of bias.
+        """
+        super(CustomizedLinear, self).__init__()
+        self.input_features = mask.shape[0]
+        self.output_features = mask.shape[1]
+        if isinstance(mask, torch.Tensor):
+            self.mask = mask.type(torch.float).t()
+        else:
+            self.mask = torch.tensor(mask, dtype=torch.float).t()
+
+        self.mask = nn.Parameter(self.mask, requires_grad=False)
+
+        # nn.Parameter is a special kind of Tensor, that will get
+        # automatically registered as Module's parameter once it's assigned
+        # as an attribute. Parameters and buffers need to be registered, or
+        # they won't appear in .parameters() (doesn't apply to buffers), and
+        # won't be converted when e.g. .cuda() is called. You can use
+        # .register_buffer() to register buffers.
+        # nn.Parameters require gradients by default.
+        self.weight = nn.Parameter(torch.Tensor(self.output_features, self.input_features))
+
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(self.output_features))
+        else:
+            # You should always register all possible parameters, but the
+            # optional ones can be None if you want.
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+        # mask weight
+        self.weight.data = self.weight.data * self.mask
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+
+    def forward(self, input):
+        # See the autograd section for explanation of what happens here.
+        return CustomizedLinearFunction.apply(input, self.weight, self.bias, self.mask)
+
+    def extra_repr(self):
+        # (Optional)Set the extra information about this module. You can test
+        # it by printing an object of this class.
+        return 'input_features={}, output_features={}, bias={}'.format(
+            self.input_features, self.output_features, self.bias is not None
+        )
+
+
+################################
 # To align with previous model conventions in class
 class LinearFilter(nn.Module):
 
-    def __init__(self, input_dim = 10, y_dim=0, output_dim=10, bias=None, init_type="uniform"):
+    def __init__(self, input_dim = 10, y_dim=0, output_dim=10, bias=None, mask=None, init_type="uniform"):
         super(LinearFilter, self).__init__()
         self.input_dim = input_dim
         self.y_dim = y_dim
         self.output_dim = output_dim
         # self.fc = nn.Linear(self.input_dim + self.y_dim, self.output_dim, bias=bias)
-        self.fc = PosLinear(self.input_dim + self.y_dim, self.output_dim, bias=bias, init_type=init_type)
+        if mask is None:
+            self.fc = PosLinear(self.input_dim + self.y_dim, self.output_dim, bias=bias, init_type=init_type)
+        elif isinstance(mask, torch.Tensor):
+            self.fc = CustomizedLinear(mask, bias=bias)
+        else:
+            raise NotImplementedError("mask value:{}".format(mask))
 
     def forward(self, x, y=None):
         """
@@ -150,10 +281,13 @@ class LinearFilter(nn.Module):
         return o
 
 
+
+
+
 class Generator(nn.Module):
     def __init__(self, nn='v1', name='g_filter', z_dim=24, y_priv_dim=2,
                  Q=None, G=None, h = None, A=None, b=None, T=24, p=None,
-                 device=None, n_job=11):
+                 device=None, mask=None, n_job=11):
         """
 
         :param nn:
@@ -178,7 +312,7 @@ class Generator(nn.Module):
         self.n_job = n_job
 
         # create a linear filter # @since 2019/08/29 modify zero bias
-        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=False, init_type="kaiming")  # setting noise dim is same as latent dim
+        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, bias=None, mask=mask, init_type="kaiming")  # setting noise dim is same as latent dim
         # Set prior as fixed parameter attached to module
         self.z_prior_m = Parameter(torch.zeros(1), requires_grad=False)
         self.z_prior_v = Parameter(torch.ones(1), requires_grad=False)
