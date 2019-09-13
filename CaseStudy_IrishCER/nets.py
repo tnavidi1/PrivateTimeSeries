@@ -32,10 +32,10 @@ class Classifier(nn.Module):
         self.z_dim = z_dim
         self.y_dim = y_dim
         self.net = nn.Sequential(
-            nn.Linear(z_dim, 52),
+            nn.Linear(z_dim, 50),
             nn.ReLU(),
             # nn.ELU(),
-            nn.Linear(52, 24),
+            nn.Linear(50, 24),
             nn.ReLU(),
             # nn.ELU(),
             nn.Linear(24, y_dim)

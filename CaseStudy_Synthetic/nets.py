@@ -11,9 +11,9 @@ except:
     raise FileNotFoundError("== Opt module util import error! ==")
 
 
-class ClassifierLatent(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, z_dim=10, y_dim=0):
-        super(ClassifierLatent, self).__init__()
+        super(Classifier, self).__init__()
         self.z_dim = z_dim
         self.y_dim = y_dim
         self.net = nn.Sequential(
