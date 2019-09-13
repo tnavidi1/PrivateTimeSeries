@@ -477,6 +477,9 @@ class Generator(nn.Module):
             grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
         elif self.has_mask == 1:
             grad = self.evaluate_cost_grad_diag(x_sol_priv, D, p, dD=d_Xd_priv, cat_noise=cat_noise_)
+        else:
+            raise NotImplementedError("NOT supported for the value {}".format(self.has_mask))
+
 
         # raise NotImplementedError(x_sol_raw.shape, x_sol_priv.shape, d_Xd.shape, d_Xd_priv.shape)
         # obj_priv = self.evaluate_cost_obj(x_sol_priv, D, Y_onehot, p=p)

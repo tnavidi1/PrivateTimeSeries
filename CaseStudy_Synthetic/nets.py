@@ -209,7 +209,7 @@ class Generator(nn.Module):
         self.device = device
 
         # create a linear filter
-        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim)  # setting noise dim is same as latent dim
+        self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, mask=mask, bias=None)  # setting noise dim is same as latent dim
 
         # Set prior as fixed parameter attached to module
         self.z_prior_m = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
@@ -292,6 +292,9 @@ class Generator(nn.Module):
             grad = self.evaluate_cost_grad(x_sol_priv, D, p, d_Xd_priv, cat_noise_)
         elif self.has_mask == 1:
             grad = self.evaluate_cost_grad_diag(x_sol_priv, D, p, dD=d_Xd_priv, cat_noise=cat_noise_)
+        else:
+            raise NotImplementedError("NOT supported for the value {}".format(self.has_mask))
+
 
         obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D, p=p)
         obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
