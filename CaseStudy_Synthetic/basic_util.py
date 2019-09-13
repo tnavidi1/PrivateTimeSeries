@@ -1,9 +1,80 @@
 import os
 import torch
-
+import numpy as np
 import json
 import logging
 import shutil
+
+
+import sys
+sys.path.append('..')
+
+import OptMiniModule.util as optMini_util
+
+
+
+def _form_QP_params(param_set, p=None):
+    """
+
+    :param param_set:
+    :param p: price
+    :return:
+    """
+    if not isinstance(param_set, dict):
+        raise NotImplementedError("wrong type of param set: {}".format( param_set))
+
+    c_i = param_set['c_i']
+    c_o = param_set['c_o']
+    eta_eff = param_set['eta_eff']
+    beta1 = param_set['beta1']
+    beta2 = param_set['beta2']
+    beta3 = param_set['beta3']
+    alpha = param_set['alpha']
+    B = param_set['B']
+    T = param_set['T']
+
+    G = optMini_util.construct_G_batt_raw(T)
+    h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
+    A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
+    b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
+    Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, beta3=beta3)
+    q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, beta3=beta3, alpha=alpha)
+
+    return [Q, q, G, h, A, b, T, price]
+
+
+def create_price(steps_perHr=2):
+    HORIZON = 24
+    T1 = 16
+    T2 = T1 + 5
+    T3 = HORIZON
+    rate_offpeak = 0.202
+    rate_onpeak = 0.463
+    price_shape = np.hstack((rate_offpeak * np.ones((1, T1 * steps_perHr)),
+                             rate_onpeak * np.ones((1, (T2-T1) * steps_perHr)),
+                             rate_offpeak * np.ones((1, (T3-T2) * steps_perHr ))))
+    p = torch.from_numpy(price_shape).to(torch.float).reshape(-1, 1)
+    return p
+
+# @create & load the LMP
+def create_LMP(filename, granular=24, steps_perHr=2):
+    lmp = np.genfromtxt(filename)
+    # print(lmp.shape) # 192
+    n = int(len(lmp) / granular)
+    lmp = lmp.reshape(n, granular)
+    # print(lmp)
+    # lmp_ = np.concatenate((lmp[0], lmp[1]), axis=1).reshape(-1)
+    T = int(steps_perHr * granular)
+    if T == 48:
+        lmp = np.concatenate((lmp[0][:, np.newaxis], lmp[1][:,np.newaxis]), axis=1).reshape(-1)
+    elif T == 24:
+        lmp = lmp[0]
+    else:
+        raise NotImplementedError("---- time steps T={:d}----".format(T))
+    # print(lmp_)
+    p = torch.from_numpy(lmp).to(torch.float).reshape(-1, 1)
+    return p
+
 
 
 

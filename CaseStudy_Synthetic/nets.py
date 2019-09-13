@@ -303,7 +303,7 @@ class Generator(nn.Module):
 
         # size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
 
-
-
+        print(self.filter.fc.weight.shape)
+        raise NotImplementedError
 
         return obj_priv, grad, tr_penalty
