@@ -22,15 +22,10 @@ def run(dataloader, lr=1e-3, iter_max=10):
         label_cnt2 = 0
         with tqdm(dataloader) as pbar:
             for X, Y in pbar:
-                # print(X, Y)
-
-                X = F.normalize(X, p=1, dim=1)
+                # X = F.normalize(X, p=1, dim=1)
                 y_labels = Y.long().squeeze()
                 optimizer_clf.zero_grad()
                 y_out = clf(X)
-                # y_labels = convert_binary_label(Y-1)
-                # y_labels = bUtil.convert_binary_label(Y, name_median[1])
-                # y_labels = (Y-1).long().squeeze()
                 loss = F.cross_entropy(y_out, y_labels, weight=None,
                                        ignore_index=-100, reduction='mean')
                 loss.backward()
@@ -54,6 +49,7 @@ def run(dataloader, lr=1e-3, iter_max=10):
                 # acc='{:.3e}'.format(correct.sum() * 1.0 / float(X.size(0)) ))
                 pbar.update(10)
 
-        # break
 
-run(dataloader_dict['train'], lr=1e-4, iter_max=1000)
+###############################
+# iter==500 roughly is fine, unnormalized data (0.94) beats normed data (0.68)
+run(dataloader_dict['train'], lr=1e-4, iter_max=500)
