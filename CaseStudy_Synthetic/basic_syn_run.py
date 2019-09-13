@@ -5,9 +5,11 @@ import matplotlib.pyplot as plt
 
 
 
-X, Y = processData.load_training_data('../training_data.npz')
+dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=1, bsz=12, split=0.15)
 
-# print(X.shape, Y.shape)
+def run(dataloader):
+    for k, (X, y) in enumerate(dataloader):
+        print(X, y)
+        break
 
-# plt.plot(X[1])
-# plt.show()
+run(dataloader_dict['train'])
