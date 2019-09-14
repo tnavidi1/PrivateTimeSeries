@@ -110,7 +110,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 D = F.normalize(D, p=1, dim=1)
                 bsz = D.shape[0]
                 j += 1
-                k = j
+                # k = j
                 # k = j * batchs_length + k
                 optimizer_g.zero_grad()
                 optimizer_clf.zero_grad()
@@ -168,7 +168,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
 
                 batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
                 gap_obj = (batch_j_obj_priv.data.t() - batch_j_obj_raw.data.t()).mean()
-                pbar.set_postfix(iter='{:d}'.format(k), g_loss='{:.3e}'.format(g_loss),
+                pbar.set_postfix(iter='{:d}'.format(j), g_loss='{:.3e}'.format(g_loss),
                                  util_loss = '{:.3e}'.format(loss_util),
                                  priv_loss='{:.3e}'.format(loss_priv),
                                  # cor_cnts='{:d}'.format(correct_cnt),
@@ -196,7 +196,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                 if not os.path.exists(dir_folder):
                     os.mkdir(dir_folder)
 
-                if j == iter_max:
+                if j >= iter_max:
                     return
 
                 val_acc = float(correct_cnt) / tot_cnt
@@ -207,7 +207,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
 
                 if j % iter_save == 1 :
 
-                    bUtil.save_checkpoint({'epoch': k + 1,
+                    bUtil.save_checkpoint({'epoch': j + 1,
                                            'g_state_dict': g.state_dict(),
                                            'g_optim_dict': optimizer_g.state_dict(),
                                            'clf_state_dict': clf.state_dict(),
@@ -235,7 +235,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
 
                 # Save latest val metrics in a json file in the model directory
 
-                if k % iter_save == 1 and verbose == 1:
+                if j % iter_save == 1 and verbose == 1:
                     z_noise_gen = g.sample_z(batch=bsz)
                     z_noise_gen = z_noise_gen / z_noise_gen.norm(2, dim=1).unsqueeze(1).repeat(1, _default_horizon_)
                     concat_noise = torch.cat([z_noise_gen, y_onehot], dim=1).cpu().numpy()
@@ -271,30 +271,30 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                     ax[1, 1].set_ylim(min_axis_low, max_axis_low)
 
                     plt.tight_layout()
-                    plt.savefig('%s/diagnose_iter_%d.png'%(dir_folder, k))
+                    plt.savefig('%s/diagnose_iter_%d.png'%(dir_folder, j))
                     plt.close('all')
 
                     #############################
                     plt.figure(figsize=(6.5,5))
-                    s = k - 1500 if k > 1500 else 0
+                    s = j - 1500 if j > 1500 else 0
                     # s = 50
-                    t = k
+                    t = j
                     plt.plot(np.arange(len(losses_adv[s:t])), losses_adv[s:t], label='adv loss')
                     plt.plot(np.arange(len(losses_gen[s:t])), losses_gen[s:t], label='gen loss')
                     plt.legend()
                     plt.tight_layout()
-                    plt.savefig('%s/losses_iter_%d.png'%(dir_folder, k))
+                    plt.savefig('%s/losses_iter_%d.png'%(dir_folder, j))
                     plt.close('all')
 
                 # =======================================
                 # plot out figures
-                if k % iter_save == 1 and savefig is True:
+                if j % iter_save == 1 and savefig is True:
                     # print(g.filter.fc.weight.data)
                     plt.figure(figsize=(6, 5))
                     sns.heatmap(g.filter.fc.weight.data.cpu().numpy())
-                    plt.title("iter==%d" % k)
+                    plt.title("iter==%d" % j)
                     plt.tight_layout()
-                    plt.savefig('%s/filter_visual_weight_%d.png' %( dir_folder, k))
+                    plt.savefig('%s/filter_visual_weight_%d.png' %( dir_folder, j))
                     plt.close('all')
 
                     fig, ax=plt.subplots(3,1, figsize=(6.5, 10))
@@ -307,7 +307,7 @@ def run_battery_train(dataloader, dataloader_test=None, params=None, iter_max=50
                     ax[2].set_title("sampled demand plot")
                     ax[2].legend(['raw', 'priv'])
                     plt.tight_layout()
-                    plt.savefig('%s/demand_visual_iter_%d.png'%(dir_folder,k))
+                    plt.savefig('%s/demand_visual_iter_%d.png'%(dir_folder,j))
                     plt.close('all')
 
 

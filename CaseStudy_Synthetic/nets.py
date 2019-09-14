@@ -199,7 +199,7 @@ class CustomizedLinear(nn.Module):
 class Generator(nn.Module):
     def __init__(self, nn='v1', name='g_filter', z_dim=24, y_priv_dim=2,
                  Q=None, G=None, h=None, A=None, b=None, T=24, p=None, mask=None,
-                 device=None):
+                 device=None, n_job=1):
 
         super().__init__()
         self.name = name
@@ -207,7 +207,8 @@ class Generator(nn.Module):
         self.y_priv_dim = y_priv_dim
         self._set_convex_prob_param(p, Q, G, h, A, b, T)
         self.device = device
-
+        self.n_job = n_job
+        self.has_mask = 1 if isinstance(mask, torch.Tensor) else 0
         # create a linear filter
         self.filter = LinearFilter(self.z_dim, self.y_priv_dim, output_dim=self.z_dim, mask=mask, bias=None)  # setting noise dim is same as latent dim
 
@@ -237,8 +238,8 @@ class Generator(nn.Module):
 
         x_proc_noise = self.filter(z_noise, y)
         x_noise = x + x_proc_noise
-        x_noise = x_noise.clamp(x_noise, min=0)
-        return x_noise
+        x_noise = torch.clamp(x_noise, min=0)
+        return x_noise, z_noise
 
     def sample_z(self, batch):
         return ut.sample_gaussian(self.z_prior[0].expand(batch, self.z_dim),
@@ -267,6 +268,15 @@ class Generator(nn.Module):
         # return bLosses.objective_task_loss(p, x_sols, D_, Q, T)
         return bLosses.objective_task_loss_linear(p, x_sols, D_, T)
 
+    def evaluate_cost_grad(self, x_sol, D, p=None, dD=None, cat_noise=None):
+        Q = self.Q
+        T = self.T
+        # bLosses.grad_dl_dx(p, x_sol, D, Q, T)
+        # bLosses.grad_loss_dx_dD_eps(dD, cat_noise, T) # p, x_sol, D, Q, dD, cat_noise, T
+        avg_grad = bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
+        return avg_grad
+
+
     def _objective_vals_setter(self, obj_raw, obj_priv):
         self.obj_raw = obj_raw
         self.obj_priv = obj_priv
@@ -275,7 +285,7 @@ class Generator(nn.Module):
         return self.obj_raw, self.obj_priv
 
 
-    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01):
+    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01, prior=None):
         if p is None:
             p = self.p
 
@@ -302,8 +312,13 @@ class Generator(nn.Module):
         self._objective_vals_setter(obj_raw, obj_priv)
 
         # size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
+        GAMMA = self.filter.fc.weight[:, :self.T]
+        # print(self.filter.fc.weight[:, self.T:])
+        # print(self.filter.fc.weight.shape)
+        bias_vec = self.filter.fc.weight[:, self.T:].mm(prior)
+        print(bias_vec)
+        distortion = torch.norm(GAMMA, p='fro')**2 + torch.norm(bias_vec, p=2)**2
+        # print(bias_vec)
+        # raise NotImplementedError
 
-        print(self.filter.fc.weight.shape)
-        raise NotImplementedError
-
-        return obj_priv, grad, tr_penalty
+        return obj_priv, grad, distortion
