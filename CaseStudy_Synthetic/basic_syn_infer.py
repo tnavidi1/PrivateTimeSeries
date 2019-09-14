@@ -10,9 +10,16 @@ import basic_util as bUtil
 
 dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=1, bsz=128, split=0.15)
 
-def run(dataloader, lr=1e-3, iter_max=10):
+def run(dataloader, lr=1e-3, iter_max=10, outdim=2):
 
-    clf = nets.Classifier(z_dim=24, y_dim=2)
+    # clf = nets.Classifier(z_dim=24, y_dim=2)
+    if outdim == 2:
+        clf = nets.Classifier(z_dim=24, y_dim=2)
+    elif outdim == 1:
+        clf = nets.Classifier(z_dim=24, y_dim=1)
+    else:
+        raise NotImplementedError("out dimension error {}".format(outdim))
+
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     j=0
     for i_ in range(iter_max):
@@ -20,31 +27,46 @@ def run(dataloader, lr=1e-3, iter_max=10):
         tot_cnt = 0
         label_cnt1 = 0
         label_cnt2 = 0
+        loss = np.infty
+
         with tqdm(dataloader) as pbar:
             for X, Y in pbar:
+                bsz = X.shape[0]
                 j += 1
                 # X = F.normalize(X, p=1, dim=1)
                 y_labels = Y.long().squeeze()
                 y_onehot_target = bUtil.convert_onehot(Y.long(), 2)
                 optimizer_clf.zero_grad()
-                y_out = clf(X)
+                # y_out = clf(X)
+                # ===================
+                # @1 raw cross entropy
                 # loss = F.cross_entropy(y_out, y_labels, weight=None,
                 #                        ignore_index=-100, reduction='mean')
-                loss = F.binary_cross_entropy_with_logits(y_out, y_onehot_target)
-                # loss = - (F.logsigmoid(clf(X))).mean()
+                # ===================
+                # @2 logits out
+                y_out = None
+                if outdim == 2:
+                    y_out = clf(X)
+                    loss = F.binary_cross_entropy_with_logits(y_out, y_onehot_target)
+                # ===================
+                # @3 one-dim label out
+                elif outdim == 1:
+                    loss = F.binary_cross_entropy(torch.sigmoid(clf(X)), Y.float())
+                    out = torch.zeros((bsz, 1))
+                    out[torch.sigmoid(clf(X)) > 0.5] = 1
+                    y_out = bUtil.convert_onehot(out, 2)
+
                 loss.backward()
                 optimizer_clf.step()
 
-                # diff=(y_labels.float() - F.sigmoid(y_out)).mean()
-                if j % 100 == 0:
-                    # print(0.5, F.logsigmoid(y_out))
-                    print(F.binary_cross_entropy_with_logits(y_out, y_onehot_target).item())
-                    print(y_onehot_target.sum(dim=0)/y_onehot_target.shape[0])
+                # if j % 100 == 0:
+                #     # print(0.5, F.logsigmoid(y_out))
+                #     # print(F.binary_cross_entropy_with_logits(y_out, y_onehot_target).item())
+                #     print(y_onehot_target.sum(dim=0)/y_onehot_target.shape[0])
 
 
+                # ===== keep ===== #
                 _, y_max_idx = torch.max(y_out, dim=1)
-                # print(y_max_idx, y_labels)
-
                 correct = y_max_idx == y_labels
                 # print(correct)
                 correct_cnt += correct.sum()
@@ -67,4 +89,5 @@ def run(dataloader, lr=1e-3, iter_max=10):
 
 ###############################
 # iter==500 roughly is fine, unnormalized data (0.94) beats normed data (0.68)
-run(dataloader_dict['train'], lr=1e-4, iter_max=800)
+# run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=2)
+run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=1)
