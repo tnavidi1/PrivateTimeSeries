@@ -28,7 +28,8 @@ torch.set_printoptions(profile="full", linewidth=400)
 dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=1, bsz=128, split=0.15)
 
 
-def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5, n_job=5, seed=1):
+def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
+              tradeoff1_=1, tradeoff2_ = 1, tradeoff3_=1, n_job=5, seed=1):
 
     _default_horizon_ = 24
     torch.manual_seed(seed)
@@ -50,7 +51,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5, n_
                        T=_default_horizon_, p=price,
                        device=None, n_job=n_job)
 
-    clf = nets.Classifier(z_dim=24, y_dim=1)
+    clf = nets.Classifier(z_dim=24, y_dim=2)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr, betas=(0.6, 0.999))
     j = 0
@@ -58,41 +59,54 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5, n_
     prior_pi = torch.Tensor([[p_],[1-p_]]) # shape : [2,1]
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
-        while True:
+        while j < iter_max+1:
             correct_cnt = 0
             tot_cnt = 0
             label_cnt1 = 0
             label_cnt2 = 0
-
+            j += 1
             # raise NotImplementedError(len(dataloader))
             for k, (D, Y) in enumerate(dataloader):
-                j += 1
+
                 # print(D, Y)
                 # y_labels = (Y+1).squeeze().long()
                 optimizer_g.zero_grad()
                 optimizer_clf.zero_grad()
 
                 y_labels = Y
-                y_onehot = bUtil.convert_onehot_soft(y_labels, alphabet_size=2)
-                D_tilde, z_noise = g.forward(D, y_onehot)
+                y_onehot_target = bUtil.convert_onehot_soft(y_labels, alphabet_size=2)
+                D_tilde, z_noise = g.forward(D, y_onehot_target)
                 # y_out = clf(D_tilde)
-                clf_loss = - (F.logsigmoid(clf(D_tilde))).mean()
-
-                print(clf_loss)
+                # clf_loss = - (F.logsigmoid(clf(D_tilde))).mean()
+                y_pred = clf(D_tilde)
+                clf_loss = F.binary_cross_entropy_with_logits(y_pred, y_onehot_target)
+                clf_loss.backward(retain_graph=True)
+                optimizer_clf.step()
 
                 loss_util_batch, util_grad, distort_ = g.util_loss(D, D_tilde, z_noise,
-                                                                    y_onehot, prior=prior_pi)
-
-                # print(loss_util_batch)
-                print(util_grad.shape)
-                # print(distort_ - xi)
+                                                                   y_onehot_target, prior=prior_pi)
 
 
-                raise NotImplementedError
-                if k > 0 :
-                    break
+                g_y_target = (1 - y_onehot_target)
+                g_priv_loss = tradeoff1_ * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
+                g_distort_loss = tradeoff2_ * ((distort_ - xi)**2) + tradeoff3_ * (torch.clamp(distort_ - xi, min=0))
+                g_loss = g_priv_loss + g_distort_loss
+
+
+
+                loss_util = loss_util_batch.mean()
+                g_loss.backward()
+                optimizer_g.step()
+                g.filter.fc.weight.data -= lr * util_grad
+
+                pbar.set_postfix(out_iter='{:d}'.format(j), in_iter='{:d}'.format(k),
+                                 clf_loss='{:.3e}'.format(clf_loss.item()),
+                                 g_loss='{:.3e}'.format(g_loss.item()))
+                pbar.update(2)
+
 
             if j >= iter_max:
+                print("terminate!!")
                 return
 
 
@@ -129,5 +143,5 @@ params = dict(learning_rate=1e-3, batch_size=64,
 
 
 
-run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=2, lr=1e-3, n_job=4, seed=1)
+run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=2, lr=1e-3, n_job=10, seed=1)
 

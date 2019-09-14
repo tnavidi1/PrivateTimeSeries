@@ -285,7 +285,7 @@ class Generator(nn.Module):
         return self.obj_raw, self.obj_priv
 
 
-    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01, prior=None):
+    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, prior=None):
         if p is None:
             p = self.p
 
@@ -316,7 +316,7 @@ class Generator(nn.Module):
         # print(self.filter.fc.weight[:, self.T:])
         # print(self.filter.fc.weight.shape)
         bias_vec = self.filter.fc.weight[:, self.T:].mm(prior)
-        print(bias_vec)
+        # print(bias_vec)
         distortion = torch.norm(GAMMA, p='fro')**2 + torch.norm(bias_vec, p=2)**2
         # print(bias_vec)
         # raise NotImplementedError
