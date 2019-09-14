@@ -50,13 +50,12 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5, n_
                        T=_default_horizon_, p=price,
                        device=None, n_job=n_job)
 
-    clf = nets.Classifier(z_dim=24, y_dim=2)
+    clf = nets.Classifier(z_dim=24, y_dim=1)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr, betas=(0.6, 0.999))
     j = 0
     p_ = 0.5
-    prior_pi = torch.Tensor([[p_],[1-p_]])
-    print(prior_pi.shape)
+    prior_pi = torch.Tensor([[p_],[1-p_]]) # shape : [2,1]
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
         while True:
@@ -70,14 +69,26 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5, n_
                 j += 1
                 # print(D, Y)
                 # y_labels = (Y+1).squeeze().long()
+                optimizer_g.zero_grad()
+                optimizer_clf.zero_grad()
+
                 y_labels = Y
                 y_onehot = bUtil.convert_onehot_soft(y_labels, alphabet_size=2)
                 D_tilde, z_noise = g.forward(D, y_onehot)
+                # y_out = clf(D_tilde)
+                clf_loss = - (F.logsigmoid(clf(D_tilde))).mean()
 
-                loss_util_batch, util_grad, loss_tr_p = g.util_loss(D, D_tilde, z_noise,
-                                                                    y_onehot, xi=xi, prior=prior_pi)
-                print(loss_tr_p)
+                print(clf_loss)
 
+                loss_util_batch, util_grad, distort_ = g.util_loss(D, D_tilde, z_noise,
+                                                                    y_onehot, prior=prior_pi)
+
+                # print(loss_util_batch)
+                print(util_grad.shape)
+                # print(distort_ - xi)
+
+
+                raise NotImplementedError
                 if k > 0 :
                     break
 
