@@ -12,7 +12,6 @@ dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=1, bs
 
 def run(dataloader, lr=1e-3, iter_max=10, outdim=2):
 
-    # clf = nets.Classifier(z_dim=24, y_dim=2)
     if outdim == 2:
         clf = nets.Classifier(z_dim=24, y_dim=2)
     elif outdim == 1:
@@ -68,7 +67,6 @@ def run(dataloader, lr=1e-3, iter_max=10, outdim=2):
                 # ===== keep ===== #
                 _, y_max_idx = torch.max(y_out, dim=1)
                 correct = y_max_idx == y_labels
-                # print(correct)
                 correct_cnt += correct.sum()
                 tot_cnt += X.shape[0]
                 label_cnt1 += (y_labels == 0).sum()
@@ -81,13 +79,13 @@ def run(dataloader, lr=1e-3, iter_max=10, outdim=2):
                                  prop1='{:.2e}'.format(float(label_cnt1) / tot_cnt),
                                  prop2='{:.2e}'.format(float(label_cnt2) / tot_cnt)
                                  )
-                # pbar.set_postfix(iter='{:d}'.format(i_), loss='{:.3e}'.format(loss)) #,
-                #                 diff='{:.3e}'.format(diff))
+
                 # acc='{:.3e}'.format(correct.sum() * 1.0 / float(X.size(0)) ))
                 pbar.update(10)
 
 
 ###############################
 # iter==500 roughly is fine, unnormalized data (0.94) beats normed data (0.68)
+# -- start to run ---
 # run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=2)
 run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=1)
