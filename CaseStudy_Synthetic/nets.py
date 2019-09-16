@@ -260,6 +260,7 @@ class Generator(nn.Module):
 
         x_sols = bUtil._convert_to_np_arr(res, 0)
         diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        # diff_D = bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
         return diff_D, x_sols
 
     def evaluate_cost_obj(self, x_sols, D_, p=None):
@@ -291,6 +292,12 @@ class Generator(nn.Module):
     def _objective_vals_getter(self):
         return self.obj_raw, self.obj_priv
 
+    def _ctrl_decisions_setter(self, x_raw_ctrl, x_priv_ctrl):
+        self.x_raw_ctrl = x_raw_ctrl
+        self.x_priv_ctrl = x_priv_ctrl
+
+    def _ctrl_decisions_getter(self):
+        return self.x_raw_ctrl, self.x_priv_ctrl
 
     def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, prior=None):
         if p is None:
@@ -317,9 +324,11 @@ class Generator(nn.Module):
         obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
 
         self._objective_vals_setter(obj_raw, obj_priv)
+        self._ctrl_decisions_setter(x_sol_raw, x_sol_priv)
 
         # size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
-        w_r, w_c = self.filter.fc.weight.shape
+
+        w_r, w_c = self.filter.fc.weight.shape  # decouple the weight matrix rows and columns
         GAMMA = self.filter.fc.weight[:, :self.T] if w_r == self.T else self.filter.fc.weight[:self.T, :]
         bias_vec = self.filter.fc.weight[:, self.T:].mm(prior) if w_r == self.T else (self.filter.fc.weight[self.T:, :].t()).mm(prior)
         distortion = torch.norm(GAMMA, p='fro')**2 + torch.norm(bias_vec, p=2)**2

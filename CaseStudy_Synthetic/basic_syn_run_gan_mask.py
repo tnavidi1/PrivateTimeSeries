@@ -65,14 +65,39 @@ def diagnose_filter(generator, D_tilde, D, y_onehot, noise=None, k_iter=0, folde
 
         plt.figure(figsize=(8,5))
         sns.heatmap(G.t().cpu().numpy(), cmap="RdBu")
-        plt.ylim(len(G.t().cpu().numpy())-0.5, -0.5)
+        plt.ylim(len(G.t().cpu().numpy())-0.5, -0.95)
         plt.tight_layout()
         plt.savefig(os.path.join(folder, 'diagnostic_b_filterG_iter_%d.png' %k_iter))
         plt.close('all')
 
 
+def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_iter=0, folder=None):
+    T = 24
+    # print(batch_obj_raw.shape, batch_obj_priv.shape) # torch size [bsz]
+    # print((batch_obj_raw-batch_obj_priv).cpu().numpy())
+    # print(batch_x_raw.shape, batch_x_priv.shape)  # torch size [bsz x 72]
+    bsz = batch_obj_raw.shape[0]
+    idx = np.random.randint(0, bsz, size=10)
+    net_x_raw = batch_x_raw[idx, :T] - batch_x_raw[idx, T:2*T]
+    net_x_priv = batch_x_priv[idx, :T] - batch_x_priv[idx, T:2*T]
 
 
+    fig, ax = plt.subplots(2, 2, figsize=(10, 6.5))
+    ax[0, 0].set_title('raw control')
+    ax[0, 0].plot(net_x_raw.cpu().numpy().transpose())
+    ax[1, 0].set_title('priv control')
+    ax[1, 0].plot(net_x_priv.cpu().numpy().transpose())
+    bar_width = 1
+    ax[0, 1].set_title('obj vals')
+    ax[0, 1].bar(np.arange(1, bsz+1)- bar_width/2, batch_obj_raw.cpu().numpy(), 0.75, label='raw_obj')
+    ax[0, 1].bar(np.arange(1, bsz+1)+ bar_width/2, batch_obj_priv.cpu().numpy(), 0.75, label='priv_obj')
+    ax[0, 1].legend()
+    ax[0, 1].set_title('$L(d) - L(\hat{d})$ histogram')
+    ax[1, 1].hist((batch_obj_raw - batch_obj_priv).cpu().numpy())
+    plt.tight_layout()
+    if folder is not None:
+        plt.savefig(os.path.join(folder, 'diagnostic_c_sol_iter_%d.png'% k_iter ))
+    plt.close('all')
 
 def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
               tradeoff1_=1, tradeoff2_ = 1, tradeoff3_=1, n_job=5, seed=1,
@@ -98,7 +123,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
 
     clf = nets.Classifier(z_dim=24, y_dim=2)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
-    lr_g = lr*100
+    lr_g = lr*90
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
     scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=100, gamma=0.5)
 
@@ -147,15 +172,28 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                 g_loss.backward()
                 # optimizer_g.step()
                 scheduler_g.step()
-                g.filter.fc.weight.data -= lr * util_grad.t()
+                curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
+                g.filter.fc.weight.data -= curr_lr_g[0] * util_grad.t()
 
                 losses_adv.append(clf_loss.item())
                 losses_gen.append(g_loss.item())
+
+                batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
+                batch_j_x_raw, batch_j_x_priv = g._ctrl_decisions_getter()
+
+                if outter_j % 10 == 0:
+                    diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
+                                 outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
+
+
+                curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
+
                 pbar.set_postfix(out_iter='{:d}'.format(outter_j), in_iter='{:d}'.format(k),
                                  clf_loss='{:.3e}'.format(clf_loss.item()),
                                  g_loss='{:.3e}'.format(g_loss.item()),
                                  util_loss='{:.3e}'.format(loss_util),
-                                 ds='{:.3e}'.format(distort_.item()))
+                                 ds='{:.3e}'.format(distort_.item()),
+                                 cur_lr = '{:.3e}'.format(curr_lr_g[0]))
                 pbar.update(1)
 
                 if outter_j % 25 == 0:
@@ -163,7 +201,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                                     k_iter=outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
 
                 if outter_j % 50 == 0:
-                    batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
+
                     bUtil.save_checkpoint({'epoch': outter_j + 1,
                                            'g_state_dict': g.state_dict(),
                                            'g_optim_dict': optimizer_g.state_dict(),
@@ -186,11 +224,11 @@ params = dict(learning_rate=1e-3, batch_size=64,
               iter_max=1002, iter_save=50, num_workers=10,
               tradeoff_beta1 = 3, tradeoff_beta2 = 2,
               c_i=150, c_o=150, eta_eff=0.99,
-              T=24, B=200,
+              T=24, B=160,
               beta1=0.05, beta2=0.04, beta3=0.02,
               alpha=0.2)
 
 
 #  lr = 5*1e-3
 run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=1201, xi=30000, lr=1e-2,
-          n_job=10, seed=2, load_pretrain=None)
+          n_job=10, seed=2, load_pretrain='debug_diagnose_diagmask_s2/iter_0050.pth.tar')

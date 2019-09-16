@@ -541,7 +541,8 @@ def _single_d_conic_(p, d, Q, G, h, A, b, T=24, sol_opt=cp.SCS, verbose=0):
 
     x_hat = x[:(3 * T)]
     dx, dy, ds = derivative(A_, b_, c_, atol=1e-4, btol=1e-4)
-    dA, db, dc = adjoint_derivative(dx, np.zeros(y.size), np.zeros(s.size))
+    # dA, db, dc = adjoint_derivative(dx, np.zeros(y.size), np.zeros(s.size))
+    dA, db, dc = adjoint_derivative(c_, np.zeros(y.size), np.zeros(s.size))
     # the demand d was converted in the Ax=b format b = [0,.., d, 0,...]
     return x_hat, db[T:2*(T)]
 

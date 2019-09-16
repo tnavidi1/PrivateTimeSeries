@@ -23,6 +23,8 @@ except ModuleNotFoundError:
 except:
     FileNotFoundError("cvx_runpass import error")
 
+desired_width = 300
+np.set_printoptions(precision=4, linewidth=desired_width, threshold=5000) # threshold=150*150
 
 def torch_bQuad(x, Q):
     # batch Quad_form
@@ -112,3 +114,28 @@ class QP_privD(Function):
 
 # c = torch.tensor([[ 1, 2, 3],[-1, 1, 4]] , dtype= torch.float)
 # print(torch.norm(c, p=1, dim=0))
+
+
+# import torch
+# from torch.autograd import Variable
+# x = Variable(torch.ones(2, 2), requires_grad = True)
+# y = 1.5 *x ** 2
+# y.backward(gradient=torch.ones(2, 2), retain_graph=True)
+# print("first backward of x is:")
+# print(x.grad)
+# y.backward(gradient=2*torch.ones(2, 2), retain_graph=False)
+# print("second backward of x is:")
+# print(x.grad)
+
+# print(np.eye(4))
+shift_m = np.concatenate((np.zeros((4, 1)), np.eye(4)), axis=1)
+print(shift_m)
+np.random.seed(1)
+vec = np.random.rand(5)
+print(vec)
+print(shift_m.dot(vec[:, np.newaxis]))
+
+a = np.array([1, 2, 3])
+b = np.array([2, 4, 8])
+print(np.outer(a,b))
+print(np.outer(b,a))
