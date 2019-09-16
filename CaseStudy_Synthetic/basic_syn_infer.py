@@ -87,5 +87,5 @@ def run(dataloader, lr=1e-3, iter_max=10, outdim=2):
 ###############################
 # iter==500 roughly is fine, unnormalized data (0.94) beats normed data (0.68)
 # -- start to run ---
-# run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=2)
-run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=1)
+run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=2)
+# run(dataloader_dict['train'], lr=1e-4, iter_max=800, outdim=1)

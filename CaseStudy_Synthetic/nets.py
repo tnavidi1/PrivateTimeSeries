@@ -238,7 +238,7 @@ class Generator(nn.Module):
 
         x_proc_noise = self.filter(z_noise, y)
         x_noise = x + x_proc_noise
-        x_noise = torch.clamp(x_noise, min=0)
+        # x_noise = torch.clamp(x_noise, min=0)
         return x_noise, z_noise
 
     def sample_z(self, batch):
@@ -276,6 +276,13 @@ class Generator(nn.Module):
         avg_grad = bLosses.grad_dldxdD(p, x_sol, D, Q, dD, cat_noise, T)
         return avg_grad
 
+    def evaluate_cost_grad_diag(self, x_sol, D, p=None, dD=None, cat_noise=None):
+        # print(cat_noise.shape)
+        Q = self.Q
+        T = self.T
+        # raise NotImplementedError(bLosses.grad_dldxdD_diag(p, x_sol, D, Q, dD, cat_noise, T))
+        return bLosses.grad_dldxdD_diag(p, x_sol, D, Q, dD, cat_noise, T)
+
 
     def _objective_vals_setter(self, obj_raw, obj_priv):
         self.obj_raw = obj_raw
@@ -312,13 +319,9 @@ class Generator(nn.Module):
         self._objective_vals_setter(obj_raw, obj_priv)
 
         # size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
-        GAMMA = self.filter.fc.weight[:, :self.T]
-        # print(self.filter.fc.weight[:, self.T:])
-        # print(self.filter.fc.weight.shape)
-        bias_vec = self.filter.fc.weight[:, self.T:].mm(prior)
-        # print(bias_vec)
+        w_r, w_c = self.filter.fc.weight.shape
+        GAMMA = self.filter.fc.weight[:, :self.T] if w_r == self.T else self.filter.fc.weight[:self.T, :]
+        bias_vec = self.filter.fc.weight[:, self.T:].mm(prior) if w_r == self.T else (self.filter.fc.weight[self.T:, :].t()).mm(prior)
         distortion = torch.norm(GAMMA, p='fro')**2 + torch.norm(bias_vec, p=2)**2
-        # print(bias_vec)
-        # raise NotImplementedError
 
         return obj_priv, grad, distortion
