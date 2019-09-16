@@ -98,7 +98,9 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
 
     clf = nets.Classifier(z_dim=24, y_dim=2)
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
-    optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr, betas=(0.6, 0.999))
+    lr_g = lr*100
+    optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
+    scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=100, gamma=0.5)
 
     if load_pretrain is not None:
         bUtil.load_checkopint_gan(load_pretrain, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
@@ -143,7 +145,8 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
 
                 loss_util = loss_util_batch.mean()
                 g_loss.backward()
-                optimizer_g.step()
+                # optimizer_g.step()
+                scheduler_g.step()
                 g.filter.fc.weight.data -= lr * util_grad.t()
 
                 losses_adv.append(clf_loss.item())
@@ -157,7 +160,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
 
                 if outter_j % 25 == 0:
                     diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
-                                    k_iter=outter_j, folder='debug_diagnose_diagmask')
+                                    k_iter=outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
 
                 if outter_j % 50 == 0:
                     batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
@@ -171,7 +174,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                                            'obj_raw': batch_j_obj_raw,
                                            'obj_priv': batch_j_obj_priv},
                                           is_best=is_best,
-                                          checkpoint='debug_diagnose_diagmask', filename='iter_%04d.pth.tar' % outter_j)
+                                          checkpoint='debug_diagnose_diagmask_s%d'%seed, filename='iter_%04d.pth.tar' % outter_j)
 
                 if outter_j >= iter_max:
                     print("terminate!!")
@@ -189,5 +192,5 @@ params = dict(learning_rate=1e-3, batch_size=64,
 
 
 #  lr = 5*1e-3
-run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=801, xi=50000, lr=1e-2,
-          n_job=10, seed=1, load_pretrain='debug_diagnose_diagmask/iter_0100.pth.tar')
+run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=1201, xi=30000, lr=1e-2,
+          n_job=10, seed=2, load_pretrain=None)
