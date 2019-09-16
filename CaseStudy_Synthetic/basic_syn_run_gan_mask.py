@@ -64,8 +64,9 @@ def diagnose_filter(generator, D_tilde, D, y_onehot, noise=None, k_iter=0, folde
         plt.close('all')
 
         plt.figure(figsize=(8,5))
-        sns.heatmap(G.t(), cmap="RdBu")
-        # plt.tight_layout()
+        sns.heatmap(G.t().cpu().numpy(), cmap="RdBu")
+        plt.ylim(len(G.t().cpu().numpy())-0.5, -0.5)
+        plt.tight_layout()
         plt.savefig(os.path.join(folder, 'diagnostic_b_filterG_iter_%d.png' %k_iter))
         plt.close('all')
 
@@ -188,5 +189,5 @@ params = dict(learning_rate=1e-3, batch_size=64,
 
 
 #  lr = 5*1e-3
-run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=701, xi=50000, lr=1e-2,
+run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=801, xi=50000, lr=1e-2,
           n_job=10, seed=1, load_pretrain='debug_diagnose_diagmask/iter_0100.pth.tar')
