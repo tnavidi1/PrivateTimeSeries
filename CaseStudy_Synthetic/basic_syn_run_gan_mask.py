@@ -90,9 +90,9 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_ite
     bar_width = 1
     ax[0, 1].set_title('obj vals')
     ax[0, 1].bar(np.arange(1, bsz+1)- bar_width/2, batch_obj_raw.cpu().numpy(), 0.75, label='raw_obj')
-    ax[0, 1].bar(np.arange(1, bsz+1)+ bar_width/2, batch_obj_priv.cpu().numpy(), 0.75, label='priv_obj')
+    ax[0, 1].bar(np.arange(1, bsz+1)+ 0.1, batch_obj_priv.cpu().numpy(), 0.75, label='priv_obj')
     ax[0, 1].legend()
-    ax[0, 1].set_title('$L(d) - L(\hat{d})$ histogram')
+    ax[1, 1].set_title('$L(d) - L(\hat{d})$ histogram')
     ax[1, 1].hist((batch_obj_raw - batch_obj_priv).cpu().numpy())
     plt.tight_layout()
     if folder is not None:
@@ -125,7 +125,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     lr_g = lr*90
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
-    scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=100, gamma=0.5)
+    scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=200, gamma=0.5)
 
     if load_pretrain is not None:
         bUtil.load_checkopint_gan(load_pretrain, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
@@ -156,7 +156,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                 D_tilde, z_noise = g.forward(D, y_onehot_target)
                 y_pred = clf(D_tilde)
                 clf_loss = F.binary_cross_entropy_with_logits(y_pred, y_onehot_target)
-                if outter_j % 2 == 0:
+                if outter_j % 2 == 0 and clf_loss.item() > 0.2:
                     clf_loss.backward(retain_graph=True)
                     optimizer_clf.step()
 
@@ -173,7 +173,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                 # optimizer_g.step()
                 scheduler_g.step()
                 curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
-                g.filter.fc.weight.data -= curr_lr_g[0] * util_grad.t()
+                g.filter.fc.weight.data -= lr * util_grad.t()
 
                 losses_adv.append(clf_loss.item())
                 losses_gen.append(g_loss.item())
@@ -186,7 +186,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                                  outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
 
 
-                curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
+                # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
 
                 pbar.set_postfix(out_iter='{:d}'.format(outter_j), in_iter='{:d}'.format(k),
                                  clf_loss='{:.3e}'.format(clf_loss.item()),
@@ -231,4 +231,4 @@ params = dict(learning_rate=1e-3, batch_size=64,
 
 #  lr = 5*1e-3
 run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=1201, xi=30000, lr=1e-2,
-          n_job=10, seed=2, load_pretrain='debug_diagnose_diagmask_s2/iter_0050.pth.tar')
+          n_job=10, seed=2, load_pretrain='debug_diagnose_diagmask_s2/iter_0750.pth.tar')
