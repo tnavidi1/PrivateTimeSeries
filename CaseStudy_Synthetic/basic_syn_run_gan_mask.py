@@ -82,7 +82,7 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_ite
     net_x_priv = batch_x_priv[idx, :T] - batch_x_priv[idx, T:2*T]
 
 
-    fig, ax = plt.subplots(2, 2, figsize=(10, 6.5))
+    fig, ax = plt.subplots(2, 2, figsize=(12, 6.5))
     ax[0, 0].set_title('raw control')
     ax[0, 0].plot(net_x_raw.cpu().numpy().transpose())
     ax[1, 0].set_title('priv control')
@@ -99,9 +99,12 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_ite
         plt.savefig(os.path.join(folder, 'diagnostic_c_sol_iter_%d.png'% k_iter ))
     plt.close('all')
 
-def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
-              tradeoff1_=1, tradeoff2_ = 1, tradeoff3_=1, n_job=5, seed=1,
-              load_pretrain='debug_diagnose/iter_0800.pth.tar'):
+def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=500, iter_save=20, lr=1e-3, xi=0.5,
+              tradeoff_beta1=1, tradeoff_beta2 = 1, tradeoff_beta3=1,
+              save_folder=None,
+              reload_step=1,
+              n_job=5, seed=1,
+              reload_pretrain=None):
 
     _default_horizon_ = 24
     torch.manual_seed(seed)
@@ -127,8 +130,9 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
     scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=200, gamma=0.5)
 
-    if load_pretrain is not None:
-        bUtil.load_checkopint_gan(load_pretrain, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
+    if reload_pretrain is not None:
+        reload_pretrain_file = os.path.join(reload_pretrain, 'iter_%04d.pth.tar' % reload_step)
+        bUtil.load_checkopint_gan(reload_pretrain_file, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
 
     outter_j = 0
     p_ = 0.5
@@ -145,7 +149,7 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
             label_cnt2 = 0
 
             # raise NotImplementedError(len(dataloader))
-            for k, (D, Y) in enumerate(dataloader):
+            for k, (D, Y) in enumerate(dataloader_train):
                 outter_j += 1
 
                 optimizer_g.zero_grad()
@@ -164,8 +168,8 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
                                                                    y_onehot_target, prior=prior_pi)
 
                 g_y_target = (1 - y_onehot_target)
-                g_priv_loss = tradeoff1_ * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
-                g_distort_loss = tradeoff2_ * ((distort_ - xi) ** 2) + tradeoff3_ * (torch.clamp(distort_ - xi, min=0))
+                g_priv_loss = tradeoff_beta1 * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
+                g_distort_loss = tradeoff_beta2 * ((distort_ - xi) ** 2) + tradeoff_beta3 * (torch.clamp(distort_ - xi, min=0))
                 g_loss = g_priv_loss + g_distort_loss
 
                 loss_util = loss_util_batch.mean()
@@ -220,15 +224,50 @@ def run_train(dataloader, params, p_opt='TOU', iter_max=500, lr=1e-3, xi=0.5,
 
 
 
-params = dict(learning_rate=1e-3, batch_size=64,
-              iter_max=1002, iter_save=50, num_workers=10,
-              tradeoff_beta1 = 3, tradeoff_beta2 = 2,
-              c_i=150, c_o=150, eta_eff=0.99,
-              T=24, B=160,
-              beta1=0.05, beta2=0.04, beta3=0.02,
-              alpha=0.2)
+# params = dict(learning_rate=1e-3, batch_size=64,
+#               iter_max=1002, iter_save=50, num_workers=10,
+#               tradeoff_beta1 = 3, tradeoff_beta2 = 2,
+#               c_i=150, c_o=150, eta_eff=0.99,
+#               T=24, B=160,
+#               beta1=0.05, beta2=0.04, beta3=0.02,
+#               alpha=0.2)
 
 
 #  lr = 5*1e-3
-run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=1201, xi=30000, lr=1e-2,
-          n_job=10, seed=2, load_pretrain='debug_diagnose_diagmask_s2/iter_0750.pth.tar')
+# run_train(dataloader_dict['train'], params=params, p_opt='TOU', iter_max=501, xi=30000, lr=1e-2,
+#           n_job=10, seed=2, load_pretrain='debug_diagnose_diagmask_s2/iter_0700.pth.tar')
+
+
+if __name__ == '__main__':
+
+
+
+    parser = argparse.ArgumentParser()
+    # Load the parameters from json file
+
+    parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
+    parser.add_argument('--save_dir', default='experiments/models_logs', help="Directory of models logs")
+    parser.add_argument('--param_file', default="param_set_01")
+    parser.add_argument('--p_opt', default='LMP', help='price option (TOU or LMP)')
+    parser.add_argument('--run', default=1, type=int)
+    parser.add_argument('--load_pretrain_step', default=0, type=int)
+
+    args = parser.parse_args()
+    json_path = os.path.join(args.model_dir, args.param_file+'.json')
+    assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
+    params = bUtil.Params(json_path)
+    # print(*params.dict)
+    save_folder = args.save_dir + '_' + args.p_opt
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
+        print("create a folder")
+
+    run_train(dataloader_dict['train'], dataloader_dict['test'],
+              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
+                lr=params.learning_rate, xi=params.xi,
+                tradeoff_beta1=params.tradeoff_beta1,
+                tradeoff_beta2=params.tradeoff_beta2,
+                p_opt=args.p_opt,
+                save_folder=save_folder,
+                reload_step= args.load_pretrain_step,
+                savefig=True, verbose=1, n_job=params.num_workers)
