@@ -99,12 +99,13 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_ite
         plt.savefig(os.path.join(folder, 'diagnostic_c_sol_iter_%d.png'% k_iter ))
     plt.close('all')
 
-def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=500, iter_save=20, lr=1e-3, xi=0.5,
+def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=500, iter_save=20, iter_dig=10,
+              lr=1e-3, xi=0.5,
               tradeoff_beta1=1, tradeoff_beta2 = 1, tradeoff_beta3=1,
               save_folder=None,
               reload_step=1,
               n_job=5, seed=1,
-              reload_pretrain=None):
+              reload_pretrain_folder=None, savefig=True, verbose=1 ):
 
     _default_horizon_ = 24
     torch.manual_seed(seed)
@@ -130,8 +131,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
     scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=200, gamma=0.5)
 
-    if reload_pretrain is not None:
-        reload_pretrain_file = os.path.join(reload_pretrain, 'iter_%04d.pth.tar' % reload_step)
+    if reload_pretrain_folder is not None:
+        reload_pretrain_file = os.path.join(reload_pretrain_folder, 'iter_%04d.pth.tar' % reload_step)
         bUtil.load_checkopint_gan(reload_pretrain_file, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
 
     outter_j = 0
@@ -185,10 +186,9 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                 batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
                 batch_j_x_raw, batch_j_x_priv = g._ctrl_decisions_getter()
 
-                if outter_j % 10 == 0:
-                    diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
-                                 outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
-
+                # if outter_j % iter_dig == 0:
+                #     diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
+                #              outter_j, folder='debug_diagnose_diagmask_s%d' % seed)
 
                 # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
 
@@ -200,11 +200,18 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                  cur_lr = '{:.3e}'.format(curr_lr_g[0]))
                 pbar.update(1)
 
-                if outter_j % 25 == 0:
-                    diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
-                                    k_iter=outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
+                if outter_j % iter_dig == 0:
+                    # diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
+                    #              outter_j, folder='debug_diagnose_diagmask_s%d' % seed)
+                    diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
+                                                     outter_j, folder=save_folder)
 
-                if outter_j % 50 == 0:
+                    # diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
+                    #                 k_iter=outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
+                    diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
+                                                        k_iter=outter_j, folder=save_folder)
+
+                if outter_j % iter_save == 0:
 
                     bUtil.save_checkpoint({'epoch': outter_j + 1,
                                            'g_state_dict': g.state_dict(),
@@ -215,8 +222,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                            'loss_a': losses_adv,
                                            'obj_raw': batch_j_obj_raw,
                                            'obj_priv': batch_j_obj_priv},
-                                          is_best=is_best,
-                                          checkpoint='debug_diagnose_diagmask_s%d'%seed, filename='iter_%04d.pth.tar' % outter_j)
+                                           is_best=is_best,
+                                           checkpoint=save_folder, filename='iter_%04d.pth.tar' % outter_j)
 
                 if outter_j >= iter_max:
                     print("terminate!!")
@@ -264,10 +271,10 @@ if __name__ == '__main__':
 
     run_train(dataloader_dict['train'], dataloader_dict['test'],
               params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
-                lr=params.learning_rate, xi=params.xi,
-                tradeoff_beta1=params.tradeoff_beta1,
-                tradeoff_beta2=params.tradeoff_beta2,
-                p_opt=args.p_opt,
-                save_folder=save_folder,
-                reload_step= args.load_pretrain_step,
-                savefig=True, verbose=1, n_job=params.num_workers)
+              lr=params.learning_rate, xi=params.xi,
+              tradeoff_beta1=params.tradeoff_beta1,
+              tradeoff_beta2=params.tradeoff_beta2,
+              p_opt=args.p_opt,
+              save_folder=save_folder,
+              reload_step= args.load_pretrain_step,
+              n_job=params.num_workers, savefig=True, verbose=1 )
