@@ -27,7 +27,7 @@ def convert_onehot_soft(y_label, alphabet_size=6):
     return y_oh_soft
 
 
-def _form_QP_params(param_set, p=None):
+def _form_QP_params(param_set, p=None, init_coef_B=0.1):
     """
 
     :param param_set:
@@ -50,7 +50,7 @@ def _form_QP_params(param_set, p=None):
     G = optMini_util.construct_G_batt_raw(T)
     h = optMini_util.construct_h_batt_raw(T, c_i=c_i, c_o=c_o, batt_B=B)
     A = optMini_util.construct_A_batt_raw(T, eta=eta_eff)
-    b = optMini_util.construct_b_batt_raw(T, batt_init=B / 2)
+    b = optMini_util.construct_b_batt_raw(T, batt_init=B * init_coef_B)
     Q = optMini_util.construct_Q_batt_raw(T, beta1=beta1, beta2=beta2, beta3=beta3)
     q, price = optMini_util.construct_q_batt_raw(T, price=p, batt_B=B, beta3=beta3, alpha=alpha)
 
