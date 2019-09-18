@@ -29,7 +29,7 @@ desired_width = 300
 np.set_printoptions(precision=4, linewidth=desired_width, threshold=5000) # threshold=150*150
 torch.set_printoptions(profile="full", linewidth=400)
 
-dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=1, bsz=64, split=0.15)
+# dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=args.run, bsz=64, split=0.15)
 
 def diagnose_filter(generator, D_tilde, D, y_onehot, noise=None, k_iter=0, folder=None):
     bsz = D.shape[0]
@@ -76,6 +76,13 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, k_ite
     # print(batch_obj_raw.shape, batch_obj_priv.shape) # torch size [bsz]
     # print((batch_obj_raw-batch_obj_priv).cpu().numpy())
     # print(batch_x_raw.shape, batch_x_priv.shape)  # torch size [bsz x 72]
+    if not os.path.exists(folder):
+        os.mkdir(folder)
+        print("----- create folder {}".format(folder))
+    else:
+        print('folder {} exsits already!'.format(folder))
+
+
     bsz = batch_obj_raw.shape[0]
     idx = np.random.randint(0, bsz, size=10)
     net_x_raw = batch_x_raw[idx, :T] - batch_x_raw[idx, T:2*T]
@@ -103,8 +110,9 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
               lr=1e-3, xi=0.5,
               tradeoff_beta1=1, tradeoff_beta2 = 1, tradeoff_beta3=1,
               save_folder=None,
-              reload_step=1,
-              n_job=5, seed=1,
+              reload_step=0,
+              n_job=5,
+              seed=1,
               reload_pretrain_folder=None, savefig=True, verbose=1 ):
 
     _default_horizon_ = 24
@@ -129,9 +137,15 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
     optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
     lr_g = lr*90
     optimizer_g = torch.optim.Adam(g.filter.parameters(), lr=lr_g, betas=(0.6, 0.999))
-    scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=200, gamma=0.5)
+    scheduler_g = torch.optim.lr_scheduler.StepLR(optimizer_g, step_size=400, gamma=0.5)
 
-    if reload_pretrain_folder is not None:
+    dir_folder = '{:s}/{:s}_xi_{:04.0f}_tb1_{:04.0f}_tb2_{:04.0f}_run_{:d}'.format(save_folder,
+                                                                                   args.param_file,
+                                                                                   xi,
+                                                                                   tradeoff_beta1,
+                                                                                   tradeoff_beta2, args.run)
+
+    if (reload_pretrain_folder is not None) and (reload_step != 0) :
         reload_pretrain_file = os.path.join(reload_pretrain_folder, 'iter_%04d.pth.tar' % reload_step)
         bUtil.load_checkopint_gan(reload_pretrain_file, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
 
@@ -170,8 +184,19 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
                 g_y_target = (1 - y_onehot_target)
                 g_priv_loss = tradeoff_beta1 * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
-                g_distort_loss = tradeoff_beta2 * ((distort_ - xi) ** 2) + tradeoff_beta3 * (torch.clamp(distort_ - xi, min=0))
-                g_loss = g_priv_loss + g_distort_loss
+
+                # =============================
+                ## g_distort_loss_mse = tradeoff_beta2 * ((distort_ - xi) ** 2) + tradeoff_beta3 * (torch.clamp(distort_ - xi, min=0))
+                # g_distort_loss_mse = ((distort_ - xi) ** 2)
+                # g_distort_loss_hinge = (torch.clamp(distort_ - xi, min=0))
+
+                # ====== use diff demand ======
+                g_distort_loss_mse=(torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0)**2).mean()
+                g_distort_loss_hinge = torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0).mean()
+                # raise NotImplementedError(g_priv_loss.item(), g_distort_loss_mse.item(), g_distort_loss_hinge.item())
+                r1_ = g_distort_loss_mse.item() / g_priv_loss.item() if g_distort_loss_mse.item() > 1 else 100
+                r1 = np.clip(r1_, a_min=1e-3, a_max=10000)
+                g_loss = tradeoff_beta1 * (r1) * g_priv_loss + tradeoff_beta2* g_distort_loss_mse + tradeoff_beta3*g_distort_loss_hinge
 
                 loss_util = loss_util_batch.mean()
                 g_loss.backward()
@@ -197,19 +222,23 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                  g_loss='{:.3e}'.format(g_loss.item()),
                                  util_loss='{:.3e}'.format(loss_util),
                                  ds='{:.3e}'.format(distort_.item()),
-                                 cur_lr = '{:.3e}'.format(curr_lr_g[0]))
+                                 g_priv_loss ='{:.2e}'.format(g_priv_loss.item()),
+                                 g_dis_loss_mse = '{:.2e}'.format(g_distort_loss_mse.item()),
+                                 g_dis_loss_hinge = '{:.2e}'.format(g_distort_loss_hinge.item()),
+                                 cur_lr = '{:.3e}'.format(curr_lr_g[0]),
+                                 ratio_r = '{:.2e}'.format(r1_))
                 pbar.update(1)
 
                 if outter_j % iter_dig == 0:
                     # diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
                     #              outter_j, folder='debug_diagnose_diagmask_s%d' % seed)
                     diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
-                                                     outter_j, folder=save_folder)
+                                                     outter_j, folder=dir_folder)
 
                     # diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
                     #                 k_iter=outter_j, folder='debug_diagnose_diagmask_s%d'%seed)
                     diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
-                                                        k_iter=outter_j, folder=save_folder)
+                                                        k_iter=outter_j, folder=dir_folder)
 
                 if outter_j % iter_save == 0:
 
@@ -223,7 +252,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                            'obj_raw': batch_j_obj_raw,
                                            'obj_priv': batch_j_obj_priv},
                                            is_best=is_best,
-                                           checkpoint=save_folder, filename='iter_%04d.pth.tar' % outter_j)
+                                           checkpoint=dir_folder, filename='iter_%04d.pth.tar' % outter_j)
 
                 if outter_j >= iter_max:
                     print("terminate!!")
@@ -253,11 +282,13 @@ if __name__ == '__main__':
     # Load the parameters from json file
 
     parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
-    parser.add_argument('--save_dir', default='experiments/models_logs', help="Directory of models logs")
+    parser.add_argument('--save_dir', default='experiments/models_logs_mask', help="Directory of models logs")
     parser.add_argument('--param_file', default="param_set_01")
     parser.add_argument('--p_opt', default='LMP', help='price option (TOU or LMP)')
     parser.add_argument('--run', default=1, type=int)
     parser.add_argument('--load_pretrain_step', default=0, type=int)
+    parser.add_argument('--load_pretrain_folder', default="", type=str)
+
 
     args = parser.parse_args()
     json_path = os.path.join(args.model_dir, args.param_file+'.json')
@@ -268,13 +299,18 @@ if __name__ == '__main__':
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
         print("create a folder")
+    # raise NotImplementedError(params.dict)
+
+    dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=args.run, bsz=64, split=0.15)
 
     run_train(dataloader_dict['train'], dataloader_dict['test'],
-              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save,
+              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=20,
               lr=params.learning_rate, xi=params.xi,
               tradeoff_beta1=params.tradeoff_beta1,
               tradeoff_beta2=params.tradeoff_beta2,
+              tradeoff_beta3=params.tradeoff_beta3,
               p_opt=args.p_opt,
               save_folder=save_folder,
               reload_step= args.load_pretrain_step,
-              n_job=params.num_workers, savefig=True, verbose=1 )
+              reload_pretrain_folder=args.load_pretrain_folder,
+              n_job=params.num_workers, seed=args.run, savefig=True, verbose=1 )

@@ -275,3 +275,32 @@ def load_checkopint_gan(checkpoint, model_g, model_clf, optimizer_g=None, optimi
 
     return checkpoint
 
+
+
+# =============================
+def simplify_load_demand(D, timestep_out=6):
+    # D is bsz x 24
+    T= D.shape[1]
+    h = int(T/timestep_out)
+    assert h * timestep_out == T
+    res = None
+    if isinstance(D, torch.Tensor):
+        res = torch.stack([(torch.median(D[:, (h*k):(h*(k+1))], dim=1)[0]) for k in range(timestep_out)])
+        # res = torch.stack([(torch.median(D[:, (h*k):(h*(k+1))], dim=1)[0]).cpu().numpy() for k in range(timestep_out)])
+    else:
+        raise NotImplementedError
+
+    return res.t()
+
+def create_simple_price_TOU(horizon=6, t1=3, t2=5, steps_perHr=1):
+    HORIZON = horizon
+    T1 = t1
+    T2 = t2
+    T3 = HORIZON
+    rate_offpeak = 0.202
+    rate_onpeak = 0.463
+    price_shape = np.hstack((rate_offpeak * np.ones((1, T1 * steps_perHr)),
+                             rate_onpeak * np.ones((1, (T2 - T1) * steps_perHr)),
+                             rate_offpeak * np.ones((1, (T3 - T2) * steps_perHr))))
+    p = torch.from_numpy(price_shape).to(torch.float).reshape(-1, 1)
+    return p

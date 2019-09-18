@@ -42,6 +42,24 @@ class Classifier(nn.Module):
         return o
 
 
+class ClassifierLinear(nn.Module):
+    def __init__(self, z_dim=10, y_dim=0):
+        super(ClassifierLinear, self).__init__()
+        self.z_dim = z_dim
+        self.y_dim = y_dim
+        self.net = nn.Sequential(
+            nn.Linear(z_dim, y_dim),
+            # nn.ELU(),
+            # nn.Linear(15, y_dim)
+            # nn.Linear(z_dim, y_dim),
+        )
+
+    def forward(self, x):
+        o = self.net(x)
+        return o
+
+
+
 class LinearFilter(nn.Module):
     def __init__(self, input_dim = 10, y_dim=0, output_dim=10, bias=None, mask=None):
         super(LinearFilter, self).__init__()
@@ -72,6 +90,7 @@ class LinearFilter(nn.Module):
 ## A new diag module framework ##
 #################################
 # Define customized autograd function for masked connection.
+# https://github.com/uchida-takumi/CustomizedLinear
 
 class CustomizedLinearFunction(torch.autograd.Function):
     """
