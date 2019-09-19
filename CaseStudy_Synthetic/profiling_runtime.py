@@ -15,7 +15,7 @@ import basic_util as bUtil
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-sns.set('paper', style="whitegrid", font_scale=1.5, rc={"lines.linewidth": 2.5}, )
+sns.set('paper', style="whitegrid", font_scale=1.8, rc={"lines.linewidth": 2.5}, )
 
 class SolverTest(Enum):
     GUROBI = 1
@@ -75,37 +75,41 @@ def prof_diffcp_instance(D, nBatch, param_set, p=None, solver='diffcp', debug=Fa
 
 
 
-nTrial=10
-res=None
-for i in range(nTrial):
-    for bsz in [2, 32, 64, 128]:
-        # bsz = 128
-        D_input = torch.rand(bsz, HORIZON)
-        price = torch.rand((HORIZON, 1))
-        t1, s1 = prof_cvx_instance(D_input, bsz, params, p=price, solver=cp.GUROBI)
-        t2, s2 = prof_cvx_instance(D_input, bsz, params, p=price, solver=cp.MOSEK)
-        t3, s3 = prof_diffcp_instance(D_input, bsz, params, p=price, solver='FilterModule')
-        r1 = np.array([[t1, SolverTest.GUROBI.value, bsz, i]])
-        r2 = np.array([[t2, SolverTest.MOSEK.value, bsz, i]])
-        r3 = np.array([[t3, SolverTest.FilterModule.value, bsz, i]])
-        block_res = np.concatenate((r1, r2, r3), axis=0)
+# nTrial=10
+# res=None
+# for i in range(nTrial):
+#     for bsz in [2, 32, 64, 128]:
+#         # bsz = 128
+#         D_input = torch.rand(bsz, HORIZON)
+#         price = torch.rand((HORIZON, 1))
+#         t1, s1 = prof_cvx_instance(D_input, bsz, params, p=price, solver=cp.GUROBI)
+#         t2, s2 = prof_cvx_instance(D_input, bsz, params, p=price, solver=cp.MOSEK)
+#         t3, s3 = prof_diffcp_instance(D_input, bsz, params, p=price, solver='FilterModule')
+#         r1 = np.array([[t1, SolverTest.GUROBI.value, bsz, i]])
+#         r2 = np.array([[t2, SolverTest.MOSEK.value, bsz, i]])
+#         r3 = np.array([[t3, SolverTest.FilterModule.value, bsz, i]])
+#         block_res = np.concatenate((r1, r2, r3), axis=0)
+#
+#         res = block_res if res is None else np.concatenate((res, block_res), axis=0)
+#
+#     # if i % 2 == 0:
+#     #     print(res)
+#
+# df=pd.DataFrame(res, columns=['time', 'solver', 'bsz', 'i'])
 
-        res = block_res if res is None else np.concatenate((res, block_res), axis=0)
-
-    # if i % 2 == 0:
-    #     print(res)
-
-df=pd.DataFrame(res, columns=['time', 'solver', 'bsz', 'i'])
+# df.to_csv('profiling_solver_speed.csv')
+df = pd.read_csv('profiling_solver_speed.csv')
 
 df['solver'] = df.solver.astype(int)
 df['bsz'] = df.bsz.astype(int)
 df['i'] = df.i.astype(int)
 
 # plt.figure()
-f, ax = plt.subplots(figsize=(8,5))
+f, ax = plt.subplots(figsize=(7,5.0))
 g=sns.catplot(x="bsz", y="time", hue="solver", kind="bar", data=df, ax=ax);
 
-new_labels = [SolverTest.GUROBI.name, SolverTest.MOSEK.name, SolverTest.FilterModule.name]
+# new_labels = [SolverTest.GUROBI.name, SolverTest.MOSEK.name, SolverTest.FilterModule.name]
+new_labels = [SolverTest.GUROBI.name, SolverTest.MOSEK.name, "Ours Batched"]
 
 L=ax.legend()
 print(L.get_texts())
@@ -115,4 +119,7 @@ for t, l in zip(L.get_texts(), new_labels):
     t.set_text(l)
 # ax.legend(new_labels)
 ax.set_yscale('log')
+ax.set_ylabel('Time (s)')
+ax.set_xlabel('Batch Size')
+# plt.tight_layout()
 f.savefig('batch_compare_solver.png')
