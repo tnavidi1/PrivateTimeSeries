@@ -141,7 +141,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
     else:
         price = torch.rand((_default_horizon_, 1))  # price is a column vector
 
-    Q, q, G, h, A, b, T, price = bUtil._form_QP_params(params, p=price, init_coef_B=0.1)
+    Q, q, G, h, A, b, T, price = bUtil._form_QP_params(params, p=price, init_coef_B=0.02)
 
     mask_mat = torch.cat([torch.eye(_default_horizon_), torch.ones((_default_horizon_, 2))], dim=1)
     g = nets.Generator(z_dim=_default_horizon_, y_priv_dim=2, Q=Q, G=G, h=h, A=A, b=b,
@@ -161,6 +161,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                                                                    tradeoff_beta2, args.run)
 
     if (reload_pretrain_folder is not None) and (reload_step != 0) :
+        print("==== reload steps iter:{:d} ====".format(reload_step))
         reload_pretrain_file = os.path.join(reload_pretrain_folder, 'iter_%04d.pth.tar' % reload_step)
         bUtil.load_checkopint_gan(reload_pretrain_file, g, clf, optimizer_g=optimizer_g, optimizer_clf=optimizer_clf)
 
@@ -207,12 +208,12 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
                 # =============================
                 ## g_distort_loss_mse = tradeoff_beta2 * ((distort_ - xi) ** 2) + tradeoff_beta3 * (torch.clamp(distort_ - xi, min=0))
-                g_distort_loss_mse = ((distort_ - xi) ** 2)
-                g_distort_loss_hinge = (torch.clamp(distort_ - xi, min=0))
+                # g_distort_loss_mse = ((distort_ - xi) ** 2)
+                # g_distort_loss_hinge = (torch.clamp(distort_ - xi, min=0))
 
                 # ====== use diff demand ======
-                # g_distort_loss_mse=(torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0)**2).mean()
-                # g_distort_loss_hinge = torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0).mean()
+                g_distort_loss_mse=(torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0)**2).mean()
+                g_distort_loss_hinge = torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0).mean()
                 ## raise NotImplementedError(g_priv_loss.item(), g_distort_loss_mse.item(), g_distort_loss_hinge.item())
                 r1_ = g_distort_loss_mse.item() / g_priv_loss.item() if g_distort_loss_mse.item() > (0.01 * xi) else 100
                 r1 = np.clip(r1_, a_min=1e-3, a_max=10000)
@@ -227,8 +228,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                     g.filter.fc.weight.data -= lr_g * g.filter.fc.weight.grad
                     g.filter.fc.weight.data -= lr_g * util_grad.t()
 
-                if outter_j % 200 == 0:
-                    lr_g = lr_g * 0.8
+                if outter_j % 100 == 0:
+                    lr_g = max(lr_g * 0.8, 5*1e-5)
 
                 losses_adv.append(clf_loss.item())
                 losses_gen.append(g_loss.item())
@@ -242,16 +243,19 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
                 # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
 
-                pbar.set_postfix(out_iter='{:d}'.format(outter_j), in_iter='{:d}'.format(k),
+                pbar.set_postfix(o_iter='{:d}'.format(outter_j),
+                                 # in_iter='{:d}'.format(k),
                                  clf_loss='{:.3e}'.format(clf_loss.item()),
                                  g_loss='{:.3e}'.format(g_loss.item()),
                                  util_loss='{:.3e}'.format(loss_util),
-                                 ds='{:.3e}'.format(distort_.item()),
-                                 g_priv_loss ='{:.2e}'.format(g_priv_loss.item()),
-                                 g_dis_loss_mse = '{:.2e}'.format(g_distort_loss_mse.item()),
-                                 g_dis_loss_hinge = '{:.2e}'.format(g_distort_loss_hinge.item()),
-                                 cur_lr = '{:.3e}'.format(lr_g),
-                                 ratio_r = '{:.2e}'.format(r1_))
+                                 ds1='{:.3e}'.format(distort_.item()),
+                                 ds2='{:.3e}'.format((D - D_tilde).norm(2, dim=1).mean()**2),
+                                 g_priv_loss ='{:.3e}'.format(g_priv_loss.item()),
+                                 g_dis_loss_mse = '{:.3e}'.format(g_distort_loss_mse.item()),
+                                 # g_dis_loss_hinge = '{:.2e}'.format(g_distort_loss_hinge.item()),
+                                 # cur_lr = '{:.3e}'.format(lr_g),
+                                 # ratio_r = '{:.2e}'.format(r1_)
+                                 )
                 pbar.update(1)
 
                 if outter_j % iter_dig == 0:
@@ -335,8 +339,12 @@ if __name__ == '__main__':
         os.mkdir(save_folder)
         print("create a folder")
     # raise NotImplementedError(params.dict)
-
+    # raise NotImplementedError(os.path.dirname(args.load_pretrain_folder))
     dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=args.run, bsz=64, split=0.15)
+
+    if args.load_pretrain_step > 0:
+        if os.path.dirname(args.load_pretrain_folder) != save_folder:
+            raise NotImplementedError(" {} is not {}".format(args.load_pretrain_folder, save_folder))
 
     run_train(dataloader_dict['train'], dataloader_dict['test'],
               params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=50,
