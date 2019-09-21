@@ -278,8 +278,9 @@ class Generator(nn.Module):
         res = OptMini_cvx.forward_conic_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
 
         x_sols = bUtil._convert_to_np_arr(res, 0)
-        diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
-        # diff_D = bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        # diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        diff_D = bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        # raise NotImplementedError
         return diff_D, x_sols
 
     def evaluate_cost_obj(self, x_sols, D_, p=None):

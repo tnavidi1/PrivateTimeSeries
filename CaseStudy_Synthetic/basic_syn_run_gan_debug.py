@@ -89,7 +89,7 @@ def diagnose_filter(generator, D_tilde, D, y_onehot, noise=None, k_iter=0, folde
         plt.close('all')
 
 
-def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, T = 24, k_iter=0, folder=None):
+def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, D_raw, D_tilde, T = 24, k_iter=0, folder=None, sample_size=2):
 
     # print(batch_obj_raw.shape, batch_obj_priv.shape) # torch size [bsz]
     # print((batch_obj_raw-batch_obj_priv).cpu().numpy())
@@ -102,16 +102,24 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, T = 2
 
 
     bsz = batch_obj_raw.shape[0]
-    idx = np.random.randint(0, bsz, size=10)
+    idx = np.random.randint(0, bsz, size=sample_size)
     net_x_raw = batch_x_raw[idx, :T] - batch_x_raw[idx, T:2*T]
     net_x_priv = batch_x_priv[idx, :T] - batch_x_priv[idx, T:2*T]
+    sel_D_r = D_raw[idx, :]
+    sel_D_p = D_tilde[idx, :].detach()
 
+    net_L_r = net_x_raw + sel_D_r
+    net_L_p = net_x_priv + sel_D_p
 
     fig, ax = plt.subplots(2, 2, figsize=(12, 6.5))
     ax[0, 0].set_title('raw control')
-    ax[0, 0].plot(net_x_raw.cpu().numpy().transpose())
+    ax[0, 0].plot(net_x_raw.cpu().numpy().transpose(), 'o-')
+    ax[0, 0].plot(sel_D_r.cpu().numpy().transpose(), '*--')
+    ax[0, 0].plot(net_L_r.cpu().numpy().transpose(),  '-.', linewidth=2.5,)
     ax[1, 0].set_title('priv control')
-    ax[1, 0].plot(net_x_priv.cpu().numpy().transpose())
+    ax[1, 0].plot(net_x_priv.cpu().numpy().transpose(), '^-')
+    ax[1, 0].plot(sel_D_p.cpu().numpy().transpose(), 's--')
+    ax[1, 0].plot(net_L_p.cpu().numpy().transpose(), '-.', linewidth=2.5, )
     bar_width = 1
     ax[0, 1].set_title('obj vals')
     ax[0, 1].bar(np.arange(1, bsz+1)- bar_width/2, batch_obj_raw.cpu().numpy(), 0.75, label='raw_obj')
@@ -121,22 +129,34 @@ def diagnose_sol(batch_obj_raw, batch_obj_priv, batch_x_raw, batch_x_priv, T = 2
     ax[1, 1].hist((batch_obj_raw - batch_obj_priv).cpu().numpy())
     plt.tight_layout()
     if folder is not None:
-        plt.savefig(os.path.join(folder, 'diagnostic_c_sol_iter_%d.png'% k_iter ))
+        plt.savefig(os.path.join(folder, 'diagnostic_c_sol_iter_%d_s%d.png'% (k_iter, sample_size) ))
     plt.close('all')
 
 
 
+def run_check(dataloader_train):
+
+    for k, (D, Y) in enumerate(dataloader_train):
+        max_val, max_idx = torch.max(D, dim=1)
+        print(max_idx)
+        plt.hist(max_idx.cpu().numpy())
+        plt.show()
+        raise NotImplementedError
 
 def run_train(dataloader_train, dataloader_test, params, xi=1, iter_max=8000, iter_save=50, iter_dig=20,
               lr=1e-3, tradeoff_beta1=1, tradeoff_beta2=1, tradeoff_beta3=1,
               save_folder = None, reload_pretrain_folder=None, reload_step=0,
-              seed=1, n_job=3):
+              seed=1, n_job=10):
     price = bUtil.create_simple_price_TOU(horizon=6, t1=3, t2=5, steps_perHr=1)
+    # price = bUtil.create_price(steps_perHr=1)
+    # raise NotImplementedError(price)
     _default_horizon_ = 6
     torch.manual_seed(seed)
 
+
+
     clf = nets.ClassifierLinear(z_dim=_default_horizon_, y_dim=2)
-    optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr, betas=(0.6, 0.999))
+    optimizer_clf = torch.optim.Adam(clf.parameters(), lr=lr*10, betas=(0.6, 0.999))
     outter_j = 0
     Q, q, G, h, A, b, T, price = bUtil._form_QP_params(params, p=price, init_coef_B=0.1)
     mask_mat = torch.cat([torch.eye(_default_horizon_), torch.ones((_default_horizon_, 2))], dim=1)
@@ -209,9 +229,9 @@ def run_train(dataloader_train, dataloader_test, params, xi=1, iter_max=8000, it
                 # y_pred = clf(D_)
                 y_pred = clf(D_tilde)
                 clf_loss = F.binary_cross_entropy_with_logits(y_pred, y_onehot_target)
-                if outter_j % 2 == 0:
-                    clf_loss.backward(retain_graph=True)
-                    optimizer_clf.step()
+                # if outter_j % 2 == 0:
+                clf_loss.backward(retain_graph=True)
+                optimizer_clf.step()
 
                 g_y_target = (1 - y_onehot_target)
                 g_priv_loss = tradeoff_beta1 * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
@@ -225,21 +245,23 @@ def run_train(dataloader_train, dataloader_test, params, xi=1, iter_max=8000, it
 
                 r1_ = g_distort_loss_mse.item() / g_priv_loss.item() if g_distort_loss_mse.item() > 1 else 1e3
                 r1 = np.clip(r1_, a_min=1e-3, a_max=10000)
-                g_loss = tradeoff_beta1 *  g_priv_loss + tradeoff_beta2 * (1/r1) * g_distort_loss_mse
+                g_loss = tradeoff_beta1 *  g_priv_loss # + tradeoff_beta2 * (1/r1) * g_distort_loss_mse
                          # + tradeoff_beta3 * g_distort_loss_hinge
 
                 loss_util_batch, util_grad, distort_ = g.util_loss(D_, D_tilde, z_noise,
                                                                    y_onehot_target, prior=prior_pi)
 
                 # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
-
-                g_loss.backward()
-                with torch.no_grad():
-                    g.filter.fc.weight.data -= lr_g * g.filter.fc.weight.grad
-                    g.filter.fc.weight.data -= lr_g * util_grad.t()
+                if outter_j % 2 == 0 and outter_j > 1 :
+                    g_loss.backward()
+                    with torch.no_grad():
+                        g.filter.fc.weight.data -= tradeoff_beta1 * lr_g * g.filter.fc.weight.grad
+                        g.filter.fc.weight.data -= lr_g * util_grad.t()
 
                 if outter_j % 100 == 0:
                     lr_g = lr_g * 0.8
+                    if outter_j % 1000 ==0:
+                        lr_g = 0.1
                 # scheduler_g.step()
                 #########################################
                 batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
@@ -252,8 +274,8 @@ def run_train(dataloader_train, dataloader_test, params, xi=1, iter_max=8000, it
 
 
 
-                    diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv, T = _default_horizon_,
-                                 k_iter=outter_j, folder=dir_folder)
+                    diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv, D_, D_tilde, T = _default_horizon_,
+                                 k_iter=outter_j, folder=dir_folder, sample_size=2)
 
                     # print(g.filter.fc.weight.data)
                     # diagnose_filter(generator=g, D_tilde=D_tilde, D=D, y_onehot=y_onehot_target, noise=z_noise,
@@ -308,7 +330,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_dir', default='experiments/models_logs_mask_debug', help="Directory of models logs")
     parser.add_argument('--param_file', default="param_set01_debug")
     parser.add_argument('--p_opt', default='TOU', help='price option (TOU or LMP)')
-    parser.add_argument('--run', default=1, type=int)
+    parser.add_argument('--run', default=2, type=int)
     parser.add_argument('--load_pretrain_step', default=0, type=int)
     parser.add_argument('--load_pretrain_folder', default="experiments/models_logs_mask_debug_TOU", type=str)
 
@@ -328,6 +350,7 @@ if __name__ == '__main__':
     if args.load_pretrain_folder != save_folder:
         raise NotImplementedError(" {} is not {}".format(args.load_pretrain_folder, save_folder))
     run_train(dataloader_dict['train'], dataloader_dict['test'], params.dict, xi=params.xi,
-              iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=50,
+              iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=5,
               save_folder=save_folder, reload_pretrain_folder=save_folder, seed=args.run, reload_step=args.load_pretrain_step)
 
+    # run_check(dataloader_dict['train'])

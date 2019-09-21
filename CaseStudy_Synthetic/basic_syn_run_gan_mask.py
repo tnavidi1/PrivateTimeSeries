@@ -36,10 +36,31 @@ def diagnoise_plot_demand(D1, D2, desc, fpath, iter=1):
         os.mkdir(fpath)
         print("----- create folder {}".format(fpath))
 
-    plt.figure(figsize=(8, 6))
-    plt.title(desc)
-    plt.plot(D1.detach().t().cpu().numpy(), 'b-', alpha=0.4, label='+1')
-    plt.plot(D2.detach().t().cpu().numpy(), 'g-.', alpha=0.5, label='-1')
+    import pandas as pd
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_title(desc)
+    # plt.plot(D1.detach().t().cpu().numpy(), 'b-', alpha=0.4, label='pos')
+    # plt.plot(D2.detach().t().cpu().numpy(), 'g-.', alpha=0.5, label='neg')
+    # print(D1.detach().t().cpu().numpy().shape)  # 24 32,
+    # print(D2.detach().t().cpu().numpy().shape)  # 24 ,
+    def reformatting(batch_D, label_input=1):
+        data1_nparr = batch_D.detach().t().cpu().numpy()
+        steps_ = data1_nparr.shape[0]
+        hr = (np.arange(1, steps_+1))[:, np.newaxis]
+        pos_label = np.repeat(label_input, steps_)[:, np.newaxis]
+        data1 = np.concatenate([hr, pos_label, data1_nparr], axis=1)
+        df1 = pd.DataFrame(data1, columns=['hr', 'label']+['day%d' % k for k in np.arange(data1_nparr.shape[1])]) # .melt()
+        df1 = df1.melt(id_vars=['hr', 'label'])
+        return df1
+        # raise NotImplementedError(df1)
+
+    df1 = reformatting(D1, label_input=1)
+    df2 = reformatting(D2, label_input=0)
+    df = pd.concat([df1, df2], axis=0)
+    # raise NotImplementedError(df)
+    sns.lineplot(x='hr', y='value', hue='label', data=df, ax=ax);
+    # sns.lineplot(data=D1.detach().t().cpu().numpy(), dashes=False,  label='pos')
+    # sns.lineplot(data=D2.detach().t().cpu().numpy(), dashes=False,  label='neg')
     plt.tight_layout()
     plt.savefig(os.path.join(fpath, 'debug_%s_iter_%04d.png' % (desc, iter)))
     plt.close('all')
@@ -128,7 +149,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
               reload_step=0,
               n_job=5,
               seed=1,
-              reload_pretrain_folder=None, savefig=True, verbose=1 ):
+              reload_pretrain_folder=None, lambd_ =0.1, savefig=True, verbose=1 ):
 
     _default_horizon_ = 24
     torch.manual_seed(seed)
@@ -171,6 +192,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
     is_best = False
     losses_gen = []
     losses_adv = []
+    acc_array = []
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
         while outter_j < iter_max:
@@ -196,15 +218,15 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                 D_tilde, z_noise = g.forward(D, y_onehot_target)
                 y_pred = clf(D_tilde)
                 clf_loss = F.binary_cross_entropy_with_logits(y_pred, y_onehot_target)
-                if outter_j % 2 == 0 and clf_loss.item() > 0.2:
-                    clf_loss.backward(retain_graph=True)
-                    optimizer_clf.step()
+                # if outter_j % 2 == 0 and clf_loss.item() > 0.2:
+                clf_loss.backward(retain_graph=True)
+                optimizer_clf.step()
 
                 loss_util_batch, util_grad, distort_ = g.util_loss(D, D_tilde, z_noise,
                                                                    y_onehot_target, prior=prior_pi)
 
                 g_y_target = (1 - y_onehot_target)
-                g_priv_loss = tradeoff_beta1 * F.binary_cross_entropy_with_logits(y_pred, g_y_target)
+                g_priv_loss = F.binary_cross_entropy_with_logits(y_pred, g_y_target)
 
                 # =============================
                 ## g_distort_loss_mse = tradeoff_beta2 * ((distort_ - xi) ** 2) + tradeoff_beta3 * (torch.clamp(distort_ - xi, min=0))
@@ -212,27 +234,31 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                 # g_distort_loss_hinge = (torch.clamp(distort_ - xi, min=0))
 
                 # ====== use diff demand ======
-                g_distort_loss_mse=(torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0)**2).mean()
-                g_distort_loss_hinge = torch.clamp((D - D_tilde).norm(2, dim=1) - xi, min=0).mean()
+                D_diff_gap = (D - D_tilde).norm(2, dim=1).mean()
+                g_distort_loss_mse=(torch.clamp(D_diff_gap - xi, min=0)**2).mean()
+                g_distort_loss_hinge = torch.clamp(D_diff_gap - xi, min=0).mean()
                 ## raise NotImplementedError(g_priv_loss.item(), g_distort_loss_mse.item(), g_distort_loss_hinge.item())
                 r1_ = g_distort_loss_mse.item() / g_priv_loss.item() if g_distort_loss_mse.item() > (0.01 * xi) else 100
                 r1 = np.clip(r1_, a_min=1e-3, a_max=10000)
-                g_loss = tradeoff_beta1  * g_priv_loss + tradeoff_beta2 * (1/r1)* g_distort_loss_mse + tradeoff_beta3*g_distort_loss_hinge
+                g_loss = tradeoff_beta1  * g_priv_loss # + tradeoff_beta2 * (1/r1)* g_distort_loss_mse + tradeoff_beta3*g_distort_loss_hinge
 
                 loss_util = loss_util_batch.mean()
-                g_loss.backward()
+
                 # optimizer_g.step()
                 # scheduler_g.step()
                 # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
-                with torch.no_grad():
-                    g.filter.fc.weight.data -= lr_g * g.filter.fc.weight.grad
-                    g.filter.fc.weight.data -= lr_g * util_grad.t()
+                if outter_j % 2 == 0 and outter_j > 10 :
+                    g_loss.backward()
+                    with torch.no_grad():
+                        g.filter.fc.weight.data -= lr_g * g.filter.fc.weight.grad
+                        g.filter.fc.weight.data -= lr_g * util_grad.t()
 
                 if outter_j % 100 == 0:
-                    lr_g = max(lr_g * 0.8, 5*1e-5)
+                    lr_g = max(lr_g * 0.8, 5*1e-4)
+                    if outter_j % 1000 ==0:
+                        lr_g = 0.1
 
-                losses_adv.append(clf_loss.item())
-                losses_gen.append(g_loss.item())
+
 
                 batch_j_obj_raw, batch_j_obj_priv = g._objective_vals_getter()
                 batch_j_x_raw, batch_j_x_priv = g._ctrl_decisions_getter()
@@ -243,15 +269,28 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
                 # curr_lr_g = [param_group['lr'] for param_group in optimizer_g.param_groups]
 
+                y_labels_1d_long = Y.long().squeeze()
+                _, y_max_idx = torch.max(y_pred, dim=1)
+                correct = y_max_idx == y_labels_1d_long
+                correct_cnt += correct.sum()
+                tot_cnt += D.shape[0]
+                label_cnt1 += (y_labels_1d_long == 0).sum()
+                label_cnt2 += (y_labels_1d_long == 1).sum()
+
+                losses_adv.append(clf_loss.item())
+                losses_gen.append(g_loss.item())
+                acc_array.append(float(correct_cnt) / tot_cnt)
+
                 pbar.set_postfix(o_iter='{:d}'.format(outter_j),
                                  # in_iter='{:d}'.format(k),
+                                 acc = '{:.3e}'.format(float(correct_cnt) / tot_cnt),
                                  clf_loss='{:.3e}'.format(clf_loss.item()),
-                                 g_loss='{:.3e}'.format(g_loss.item()),
+                                 # g_loss='{:.3e}'.format(g_loss.item()),
                                  util_loss='{:.3e}'.format(loss_util),
                                  ds1='{:.3e}'.format(distort_.item()),
-                                 ds2='{:.3e}'.format((D - D_tilde).norm(2, dim=1).mean()**2),
-                                 g_priv_loss ='{:.3e}'.format(g_priv_loss.item()),
-                                 g_dis_loss_mse = '{:.3e}'.format(g_distort_loss_mse.item()),
+                                 ds2='{:.3e}'.format(D_diff_gap.item()**2),
+                                 g_p_loss ='{:.3e}'.format(g_priv_loss.item()),
+                                 # g_dis_loss_mse = '{:.3e}'.format(g_distort_loss_mse.item()),
                                  # g_dis_loss_hinge = '{:.2e}'.format(g_distort_loss_hinge.item()),
                                  # cur_lr = '{:.3e}'.format(lr_g),
                                  # ratio_r = '{:.2e}'.format(r1_)
@@ -279,7 +318,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
 
 
-                if outter_j % iter_save == 0:
+                if outter_j % iter_save == 0 and outter_j > 99:
 
                     bUtil.save_checkpoint({'epoch': outter_j + 1,
                                            'g_state_dict': g.state_dict(),
@@ -288,8 +327,11 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                            'clf_optim_dict': optimizer_clf.state_dict(),
                                            'loss_g': losses_gen,
                                            'loss_a': losses_adv,
+                                           'acc': acc_array,
                                            'obj_raw': batch_j_obj_raw,
-                                           'obj_priv': batch_j_obj_priv},
+                                           'obj_priv': batch_j_obj_priv,
+                                           'lambda': tradeoff_beta1,
+                                           'distort': D_diff_gap.item()},
                                            is_best=is_best,
                                            checkpoint=dir_folder, filename='iter_%04d.pth.tar' % outter_j)
 
@@ -327,6 +369,7 @@ if __name__ == '__main__':
     parser.add_argument('--run', default=1, type=int)
     parser.add_argument('--load_pretrain_step', default=0, type=int)
     parser.add_argument('--load_pretrain_folder', default="", type=str)
+    # parser.add_argument('--lambda')
 
 
     args = parser.parse_args()
@@ -340,14 +383,14 @@ if __name__ == '__main__':
         print("create a folder")
     # raise NotImplementedError(params.dict)
     # raise NotImplementedError(os.path.dirname(args.load_pretrain_folder))
-    dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=args.run, bsz=64, split=0.15)
+    dataloader_dict = processData.get_loaders_tth('../training_data.npz', seed=args.run, bsz=params.batch_size, split=0.15)
 
     if args.load_pretrain_step > 0:
         if os.path.dirname(args.load_pretrain_folder) != save_folder:
             raise NotImplementedError(" {} is not {}".format(args.load_pretrain_folder, save_folder))
 
     run_train(dataloader_dict['train'], dataloader_dict['test'],
-              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=50,
+              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=10,
               lr=params.learning_rate, xi=params.xi,
               tradeoff_beta1=params.tradeoff_beta1,
               tradeoff_beta2=params.tradeoff_beta2,
