@@ -15,8 +15,11 @@ import cvxpy as cp
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set('paper', style="whitegrid", font_scale=1.5, rc={"lines.linewidth": 2.5}, )
+sns.set('paper', style="whitegrid", font_scale=2.5, rc={"lines.linewidth": 2.5}, )
+current_palette = sns.color_palette()
+# sns.palplot(current_palette)
 
+# raise NotImplementedError(current_palette)
 
 import OptMiniModule.util as optMini_util
 import OptMiniModule.cvx_runpass as optMini_cvx
@@ -38,7 +41,7 @@ def diagnoise_plot_demand(D1, D2, desc, fpath, iter=1):
 
     import pandas as pd
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.set_title(desc)
+    ax.set_title(desc+' demand')
     # plt.plot(D1.detach().t().cpu().numpy(), 'b-', alpha=0.4, label='pos')
     # plt.plot(D2.detach().t().cpu().numpy(), 'g-.', alpha=0.5, label='neg')
     # print(D1.detach().t().cpu().numpy().shape)  # 24 32,
@@ -46,7 +49,7 @@ def diagnoise_plot_demand(D1, D2, desc, fpath, iter=1):
     def reformatting(batch_D, label_input=1):
         data1_nparr = batch_D.detach().t().cpu().numpy()
         steps_ = data1_nparr.shape[0]
-        hr = (np.arange(1, steps_+1))[:, np.newaxis]
+        hr = (np.arange(0, steps_))[:, np.newaxis]
         pos_label = np.repeat(label_input, steps_)[:, np.newaxis]
         data1 = np.concatenate([hr, pos_label, data1_nparr], axis=1)
         df1 = pd.DataFrame(data1, columns=['hr', 'label']+['day%d' % k for k in np.arange(data1_nparr.shape[1])]) # .melt()
@@ -57,11 +60,23 @@ def diagnoise_plot_demand(D1, D2, desc, fpath, iter=1):
     df1 = reformatting(D1, label_input=1)
     df2 = reformatting(D2, label_input=0)
     df = pd.concat([df1, df2], axis=0)
+    df['label'] = df.label.astype(int)
     # raise NotImplementedError(df)
     sns.lineplot(x='hr', y='value', hue='label', data=df, ax=ax);
+    ax.plot(D1.detach().t().cpu().numpy(), color=current_palette[1], alpha=0.15)
+    ax.plot(D2.detach().t().cpu().numpy(), color=current_palette[0], alpha=0.15)
     # sns.lineplot(data=D1.detach().t().cpu().numpy(), dashes=False,  label='pos')
     # sns.lineplot(data=D2.detach().t().cpu().numpy(), dashes=False,  label='neg')
+    ax.set_ylabel('Power (W)')
+    ax.set_xlabel('Time (hr)')
     plt.tight_layout()
+
+    L = ax.legend()
+
+    new_labels = ['attribute', 'high-income', 'low-income']
+    for t, l in zip(L.get_texts(), new_labels):
+        t.set_text(l)
+    # plt.show()
     plt.savefig(os.path.join(fpath, 'debug_%s_iter_%04d.png' % (desc, iter)))
     plt.close('all')
 
@@ -103,7 +118,8 @@ def diagnose_filter(generator, D_tilde, D, y_onehot, noise=None, k_iter=0, folde
         sns.heatmap(G.t().cpu().numpy(), cmap="RdBu")
         plt.ylim(len(G.t().cpu().numpy())-0.5, -0.95)
         plt.tight_layout()
-        plt.savefig(os.path.join(folder, 'diagnostic_b_filterG_iter_%d.png' %k_iter))
+        plt.show()
+        # plt.savefig(os.path.join(folder, 'diagnostic_b_filterG_iter_%d.png' %k_iter))
         plt.close('all')
 
 
@@ -193,6 +209,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
     losses_gen = []
     losses_adv = []
     acc_array = []
+    dist_arr = []
+    d_mag_arr = []
     with tqdm(total=iter_max) as pbar:
         # with tqdm(dataloader) as pbar:
         while outter_j < iter_max:
@@ -235,6 +253,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
 
                 # ====== use diff demand ======
                 D_diff_gap = (D - D_tilde).norm(2, dim=1).mean()
+                D_mag = D.norm(2, dim=1).mean()
                 g_distort_loss_mse=(torch.clamp(D_diff_gap - xi, min=0)**2).mean()
                 g_distort_loss_hinge = torch.clamp(D_diff_gap - xi, min=0).mean()
                 ## raise NotImplementedError(g_priv_loss.item(), g_distort_loss_mse.item(), g_distort_loss_hinge.item())
@@ -280,6 +299,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                 losses_adv.append(clf_loss.item())
                 losses_gen.append(g_loss.item())
                 acc_array.append(float(correct_cnt) / tot_cnt)
+                dist_arr.append(D_diff_gap.item())
+                d_mag_arr.append(D_mag.item())
 
                 pbar.set_postfix(o_iter='{:d}'.format(outter_j),
                                  # in_iter='{:d}'.format(k),
@@ -306,7 +327,7 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                     D0 = D[idx_0, :]
                     D1 = D[idx_1, :]
                     diagnoise_plot_demand(D0, D1, desc='raw', fpath=dir_folder, iter=outter_j)
-                    diagnoise_plot_demand(D0_tilde, D1_tilde, desc='priv', fpath=dir_folder, iter=outter_j)
+                    diagnoise_plot_demand(D0_tilde, D1_tilde, desc='privatized', fpath=dir_folder, iter=outter_j)
 
                     diagnose_sol(batch_j_obj_raw, batch_j_obj_priv, batch_j_x_raw, batch_j_x_priv,
                                                      outter_j, folder=dir_folder)
@@ -317,7 +338,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                                         k_iter=outter_j, folder=dir_folder)
 
 
-
+                # if outter_j % 5 == 0:
+                #     raise NotImplementedError
                 if outter_j % iter_save == 0 and outter_j > 99:
 
                     bUtil.save_checkpoint({'epoch': outter_j + 1,
@@ -331,7 +353,8 @@ def run_train(dataloader_train, dataloader_test, params, p_opt='TOU', iter_max=5
                                            'obj_raw': batch_j_obj_raw,
                                            'obj_priv': batch_j_obj_priv,
                                            'lambda': tradeoff_beta1,
-                                           'distort': D_diff_gap.item()},
+                                           'distort': dist_arr,
+                                           'd_magnitude': d_mag_arr},
                                            is_best=is_best,
                                            checkpoint=dir_folder, filename='iter_%04d.pth.tar' % outter_j)
 
@@ -364,11 +387,12 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_dir', default='experiments/models', help="Directory containing params.json")
     parser.add_argument('--save_dir', default='experiments/models_logs_mask', help="Directory of models logs")
-    parser.add_argument('--param_file', default="param_set_01")
-    parser.add_argument('--p_opt', default='LMP', help='price option (TOU or LMP)')
-    parser.add_argument('--run', default=1, type=int)
-    parser.add_argument('--load_pretrain_step', default=0, type=int)
-    parser.add_argument('--load_pretrain_folder', default="", type=str)
+    parser.add_argument('--param_file', default="param_set_04")
+    parser.add_argument('--p_opt', default='TOU', help='price option (TOU or LMP)')
+    parser.add_argument('--run', default=3, type=int)
+    parser.add_argument('--load_pretrain_step', default=1600, type=int)
+    parser.add_argument('--load_pretrain_folder',
+                        default="experiments/models_logs_mask_TOU/param_set_04_xi_0000_tb1_0128_tb2_0001_run_3", type=str)
     # parser.add_argument('--lambda')
 
 
@@ -390,7 +414,7 @@ if __name__ == '__main__':
             raise NotImplementedError(" {} is not {}".format(args.load_pretrain_folder, save_folder))
 
     run_train(dataloader_dict['train'], dataloader_dict['test'],
-              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=10,
+              params=params.dict, iter_max=params.iter_max, iter_save=params.iter_save, iter_dig=2,
               lr=params.learning_rate, xi=params.xi,
               tradeoff_beta1=params.tradeoff_beta1,
               tradeoff_beta2=params.tradeoff_beta2,

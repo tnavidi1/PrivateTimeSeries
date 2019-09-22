@@ -266,10 +266,12 @@ def load_checkopint_gan(checkpoint, model_g, model_clf, optimizer_g=None, optimi
     if not os.path.exists(checkpoint):
         raise ("File doesn't exist {}".format(checkpoint))
     checkpoint = torch.load(checkpoint)
-    model_g.load_state_dict(checkpoint['g_state_dict'])
-    model_clf.load_state_dict(checkpoint['clf_state_dict'])
 
-    if not optimizer_g or not optimizer_clf:
+    if (model_g is not None) or (model_clf is not None):
+        model_g.load_state_dict(checkpoint['g_state_dict'])
+        model_clf.load_state_dict(checkpoint['clf_state_dict'])
+
+    if (optimizer_g is not None) or (optimizer_clf is not None):
         optimizer_g.load_state_dict(checkpoint['g_optim_dict'])
         optimizer_clf.load_state_dict(checkpoint['clf_optim_dict'])
 
