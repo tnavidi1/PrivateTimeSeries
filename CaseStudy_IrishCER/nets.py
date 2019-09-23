@@ -407,7 +407,8 @@ class Generator(nn.Module):
         res = OptMini_cvx.forward_conic_D_batch(Qs, Gs, hs, As, bs, D_detached, self.T, p=p, n_jobs=n_job)
 
         x_sols = bUtil._convert_to_np_arr(res, 0)
-        diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        # diff_D = -bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
+        diff_D = bUtil._convert_to_np_arr(res, 1)  # it's minus d (neg demand )
         return diff_D, x_sols
 
     def evaluate_cost_obj(self, x_sols, D_, p=None):
@@ -451,7 +452,16 @@ class Generator(nn.Module):
     def _objective_vals_getter(self):
         return self.obj_raw, self.obj_priv
 
-    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01):
+    def _ctrl_decisions_setter(self, x_raw_ctrl, x_priv_ctrl):
+        self.x_raw_ctrl = x_raw_ctrl
+        self.x_priv_ctrl = x_priv_ctrl
+
+    def _ctrl_decisions_getter(self):
+        return self.x_raw_ctrl, self.x_priv_ctrl
+
+
+
+    def util_loss(self, D, D_priv, z_noise, Y_onehot, p=None, xi=0.01, prior=None):
         if p is None:
             p = self.p
 
@@ -487,16 +497,26 @@ class Generator(nn.Module):
         obj_priv = self.evaluate_cost_obj(x_sol_priv, D_=D, p=p)
         obj_raw = self.evaluate_cost_obj(x_sol_raw, D_=D, p=p)
 
+        # self._objective_vals_setter(obj_raw, obj_priv)
+
         self._objective_vals_setter(obj_raw, obj_priv)
-        size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
+        self._ctrl_decisions_setter(x_sol_raw, x_sol_priv)
+
+        # size_of_tr = (torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi).size()
         # raise NotImplementedError(size_of_tr, torch.zeros(size=size_of_tr))
         # ------ huber loss ------
         # tr_penalty = F.smooth_l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
         #                               torch.zeros(size=size_of_tr))
-        tr_penalty = F.l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
-                                      torch.zeros(size=size_of_tr))
+        # tr_penalty = F.l1_loss(torch.trace(torch.mm(self.filter.fc.weight, self.filter.fc.weight.t())) - xi,
+        #                               torch.zeros(size=size_of_tr))
 
-        return obj_priv, grad, tr_penalty
+        w_r, w_c = self.filter.fc.weight.shape  # decouple the weight matrix rows and columns
+        GAMMA = self.filter.fc.weight[:, :self.T] if w_r == self.T else self.filter.fc.weight[:self.T, :]
+        bias_vec = self.filter.fc.weight[:, self.T:].mm(prior) if w_r == self.T else (self.filter.fc.weight[self.T:, :].t()).mm(
+            prior)
+        distortion = torch.norm(GAMMA, p='fro') ** 2 + torch.norm(bias_vec, p=2) ** 2
+
+        return obj_priv, grad, distortion
         ################################################
         # hinge_loss_mean = torch.clamp(obj_priv - obj_raw, min=0).mean()
 
